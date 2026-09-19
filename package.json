@@ -1,0 +1,64 @@
+{
+  "name": "db-driver",
+  "version": "0.1.0",
+  "description": "Database CLI tool with web-based configuration",
+  "type": "module",
+  "bin": {
+    "db-driver": "./dist/cli.js"
+  },
+  "main": "./dist/cli.js",
+  "files": [
+    "dist",
+    "skill"
+  ],
+  "scripts": {
+    "build": "tsc && cpx \"src/web/public/**/*\" dist/web/public",
+    "build:tsc": "tsc",
+    "build:assets": "cpx \"src/web/public/**/*\" dist/web/public",
+    "dev": "tsc --watch",
+    "start": "node --enable-source-maps dist/cli.js",
+    "prepublishOnly": "npm run build",
+    "release:patch": "npm version patch && npm publish",
+    "release:minor": "npm version minor && npm publish",
+    "release:major": "npm version major && npm publish",
+    "test": "node --test --import tsx/esm test/**/*.test.ts"
+  },
+  "keywords": [
+    "database",
+    "cli",
+    "mysql",
+    "postgresql",
+    "postgres",
+    "ai-agent",
+    "cli"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/fourstars/ai-studio.git",
+    "directory": "db-driver"
+  },
+  "bugs": {
+    "url": "https://gitee.com/fourstars/ai-studio/issues"
+  },
+  "homepage": "https://gitee.com/fourstars/ai-studio/blob/master/db-driver/README.md",
+  "dependencies": {
+    "commander": "^12.1.0",
+    "mysql2": "^3.11.4",
+    "node-sql-parser": "^5.4.0",
+    "open": "^10.1.0",
+    "pg": "^8.13.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/pg": "^8.11.10",
+    "@types/ws": "^8.5.13",
+    "cpx2": "^9.0.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
