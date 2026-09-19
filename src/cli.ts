@@ -1,5 +1,10 @@
 #!/usr/bin/env node
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
 import { Command } from 'commander';
+
 import { defaultPortFor, runConfigCli, runConfigWeb } from './commands/config.js';
 import { runInstall } from './commands/install.js';
 import { runSchema } from './commands/schema.js';
@@ -16,12 +21,17 @@ import { SKILL_DEST, CONFIG_FILE } from './utils/paths.js';
 import { clearPool } from './db/pool.js';
 import type { DbType } from './db/types.js';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(
+  readFileSync(join(__dirname, '..', 'package.json'), 'utf8')
+) as { version: string };
+
 const program = new Command();
 
 program
   .name('db-driver')
   .description('数据库查询 CLI（MySQL / PostgreSQL）')
-  .version('0.1.0');
+  .version(pkg.version);
 
 program
   .command('config')
