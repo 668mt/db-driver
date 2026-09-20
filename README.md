@@ -2,7 +2,7 @@
 
 > 让 AI Agent 安全使用 MySQL / PostgreSQL 的 CLI 工具 — 通过 `~/.agents/skills/db-driver` skill 一键安装。
 >
-> npm 包 `db-driver` · CLI 命令 `db-driver` · 本地配置 `~/.db-driver/config.json`
+> npm 包 `db-driver` · CLI 命令 `db-driver` · 本地配置加密存储
 
 ## 为什么需要它
 
@@ -157,11 +157,17 @@ db-driver config --web
 
 浏览器打开 `http://127.0.0.1:<随机端口>`，可视化增删改、勾选权限、保存。关闭浏览器 CLI 自动退出。
 
-### 配置文件位置
+### 配置存储格式（加密）
 
-`~/.db-driver/config.json`（明文 JSON，可手动编辑或用 git 备份）：
+连接配置用 **AES-256-GCM** 加密二进制存储，**master key 由 OS keyring 托管**（Windows DPAPI / macOS Keychain / Linux Secret Service）。
+
+- 不存在明文 JSON，密码字段不被机器单独抽取
+- 配置文件不公开具体路径
+- 系统重装 / 换用户后 keyring 中的 key 会丢失，配置需重新 config（设计如此：密钥不跨机器迁移）
+- 没有手动编辑入口；统一通过 `db-driver config` 或 `db-driver config --web` 修改
 
 ```json
+// 配置内容示例（实际是加密二进制）—— 仅供理解结构
 {
   "version": 1,
   "connections": [

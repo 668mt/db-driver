@@ -10,7 +10,7 @@
 `db-driver`（npm 包名 `db-driver`）是一个 **Node.js + TypeScript** 命令行工具，为 AI Agent 提供**带权限管控**的数据库访问能力。
 
 - 支持 **MySQL**、**PostgreSQL**
-- 连接配置存放在 `~/.db-driver/config.json`（明文 JSON，可手动编辑）
+- 连接配置**加密存储**（AES-256-GCM 二进制），master key 由 **OS keyring** 托管（Windows DPAPI / macOS Keychain / Linux Secret Service），不公开具体路径
 - 通过 Web 页面或 CLI flags 配置连接
 - 执行 SQL 前用 `node-sql-parser` 解析为 AST，按权限位拦截（**失败安全**）
 - 安装 `db-driver install` 会把 `skill/SKILL.md` 同步到 `~/.agents/skills/db-driver/`，让所有 Agent 知道怎么用
@@ -231,7 +231,7 @@ db-driver explain <dbId> "SELECT 1" --json
 ## 8. 已知约束
 
 - 单进程内同 dbId 共用一个连接池（30 秒 TTL）；跨进程不共享
-- 密码**明文**存于 `~/.db-driver/config.json`——本地工具默认行为
+- 配置文件是**加密二进制**（AES-256-GCM）；key 由 OS keyring 托管，**不可移植**（系统重装后需要重新 config）
 - `node-sql-parser` 89MB（首次安装慢）；只 `execute` / `sample` / `count` / `explain` 命令按需加载
 - 不支持 MSSQL / Oracle / SQLite（按需扩展）
 - `multipleStatements: false`，单次只能执行一条语句

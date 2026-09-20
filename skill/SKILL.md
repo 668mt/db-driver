@@ -37,7 +37,7 @@ db-driver config --web
   - `dmlUpdate`：INSERT / UPDATE
   - `dmlDelete`：DELETE
   - `ddl`：CREATE / ALTER / DROP / TRUNCATE 等
-- 关闭浏览器窗口后 CLI 自动退出；连接信息保存到 `~/.db-driver/config.json`。
+- 关闭浏览器窗口后 CLI 自动退出；连接信息以加密二进制存储（AES-256-GCM），master key 由 OS keyring 托管，不暴露具体路径。
 
 **方式 B — 命令行（适合脚本 / 自动化）**
 

@@ -17,7 +17,7 @@ import { runSample } from './commands/sample.js';
 import { runCount } from './commands/count.js';
 import { runExplain } from './commands/explain.js';
 import { runUpdate } from './commands/update.js';
-import { SKILL_DEST, CONFIG_FILE } from './utils/paths.js';
+import { SKILL_DEST } from './utils/paths.js';
 import { clearPool } from './db/pool.js';
 import type { DbType } from './db/types.js';
 
@@ -246,8 +246,8 @@ SQL 执行:
   $ db-driver update --check                    # 仅检查不升级
   $ db-driver update 0.2.0                      # 升到指定版本
 
-配置文件: ${CONFIG_FILE}
 Skill 安装位置: ${SKILL_DEST}
+(连接配置加密存储于 OS keyring；具体路径不公开)
 `
 );
 
