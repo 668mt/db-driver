@@ -216,6 +216,8 @@ db-driver config --web
 | `db-driver install` | 把 skill 装到 `~/.agents/skills/db-driver/` |
 | `db-driver update` | 从 npm 自更新（拒绝源码 link 模式） |
 | `db-driver update --check` | 仅检查是否有新版 |
+| `db-driver export <file> --passphrase <pwd>` | 加密导出所有连接到文件 |
+| `db-driver import <file> --passphrase <pwd> [--replace]` | 从加密文件导入 |
 
 ### 通用选项
 

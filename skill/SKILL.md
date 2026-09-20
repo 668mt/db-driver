@@ -150,6 +150,22 @@ db-driver update 0.2.0        # 升到指定版本
 db-driver update --json       # JSON 输出（AI Agent 用）
 ```
 
+## 配置导入 / 导出（加密备份 / 跨机器迁移）
+
+```bash
+# 导出（passphrase 至少 8 位）
+db-driver export backup.exp --passphrase 'MyStrongPwd!'
+
+# 脱敏导出（密码置空，便于共享模板）
+db-driver export template.exp --passphrase 'xxx' --no-include-passwords
+
+# 导入（默认跳过同 dbId 冲突，加 --replace 覆盖）
+db-driver import backup.exp --passphrase 'MyStrongPwd!' --yes
+db-driver import backup.exp --passphrase 'MyStrongPwd!' --yes --replace
+```
+
+文件格式：`AES-256-GCM` 加密二进制（PBKDF2 100k 迭代，passphrase 派生 key），跨机器可恢复。
+
 **安全机制：**
 - 源码链接（`npm link` / `git clone`）下运行会自动拒绝，提示用 `git pull && npm run build`
 - 不允许降级（要降级手动 `npm install -g db-driver@<ver>`）

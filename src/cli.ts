@@ -17,6 +17,8 @@ import { runSample } from './commands/sample.js';
 import { runCount } from './commands/count.js';
 import { runExplain } from './commands/explain.js';
 import { runUpdate } from './commands/update.js';
+import { runExport } from './commands/export.js';
+import { runImport } from './commands/import.js';
 import { SKILL_DEST } from './utils/paths.js';
 import { clearPool } from './db/pool.js';
 import type { DbType } from './db/types.js';
@@ -204,6 +206,48 @@ program
     await runUpdate({ check: !!opts.check, target: version, json: !!opts.json });
   });
 
+program
+  .command('export <file>')
+  .description('加密导出所有连接到文件（passphrase 保护，跨机器可恢复）')
+  .requiredOption('--passphrase <pwd>', '加密口令（至少 8 位）')
+  .option('--no-include-passwords', '脱敏导出（密码置空，便于共享模板）')
+  .option('--force', '覆盖已存在文件', false)
+  .option('--json', '以 JSON 格式输出', false)
+  .action(
+    async (
+      file: string,
+      opts: { passphrase: string; includePasswords: boolean; force: boolean; json: boolean }
+    ) => {
+      await runExport(file, {
+        passphrase: opts.passphrase,
+        includePasswords: opts.includePasswords,
+        force: opts.force,
+        json: opts.json,
+      });
+    }
+  );
+
+program
+  .command('import <file>')
+  .description('从加密文件导入连接（用导出时的 passphrase 解密）')
+  .requiredOption('--passphrase <pwd>', '导出时的加密口令')
+  .option('--replace', '替换现有同 dbId 的连接（默认跳过冲突）', false)
+  .option('--yes', '跳过确认', false)
+  .option('--json', '以 JSON 格式输出', false)
+  .action(
+    async (
+      file: string,
+      opts: { passphrase: string; replace: boolean; yes: boolean; json: boolean }
+    ) => {
+      await runImport(file, {
+        passphrase: opts.passphrase,
+        replace: opts.replace,
+        yes: opts.yes,
+        json: opts.json,
+      });
+    }
+  );
+
 program.addHelpText(
   'after',
   `
@@ -245,6 +289,12 @@ SQL 执行:
   $ db-driver update                            # 升级到最新版
   $ db-driver update --check                    # 仅检查不升级
   $ db-driver update 0.2.0                      # 升到指定版本
+
+备份 / 迁移:
+  $ db-driver export backup.exp --passphrase 'MyStrongPwd!'    # 加密导出
+  $ db-driver export backup.exp --passphrase 'xxx' --no-include-passwords  # 脱敏导出
+  $ db-driver import backup.exp --passphrase 'MyStrongPwd!'    # 在新机器导入
+  $ db-driver import backup.exp --passphrase 'xxx' --replace   # 替换现有同 dbId
 
 Skill 安装位置: ${SKILL_DEST}
 (连接配置加密存储于 OS keyring；具体路径不公开)
