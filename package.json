@@ -15,7 +15,9 @@
     "build": "tsc && vite build",
     "build:tsc": "tsc",
     "build:ui": "vite build",
-    "dev": "vite",
+    "dev": "concurrently -k -n server,ui -c blue,green \"tsx watch src/cli.ts console --port 7842\" \"vite\"",
+    "dev:server": "tsx watch src/cli.ts console --port 7842",
+    "dev:ui": "vite",
     "start": "node --enable-source-maps dist/cli.js",
     "prepublishOnly": "npm run build",
     "release:patch": "npm version patch && npm publish",
@@ -64,6 +66,7 @@
     "@types/pg": "^8.11.10",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^10.0.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^8.3.0"
