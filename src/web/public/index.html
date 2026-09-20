@@ -1404,14 +1404,11 @@ async function loadUsageList() {
             showToast('保存失败: ' + (err.error || res.status), 'error');
             return;
           }
+          const saved = await res.json();
           showToast('✓ 已保存');
-          currentUsage = null;
-          $('usage-title').value = '';
-          $('usage-content').value = '';
-          usageDbIdEl.value = '';
-          usageFormEl.style.display = 'none';
-          usagePlaceholderEl.style.display = '';
+          currentUsage = saved;
           await loadUsageList();
+          showUsageView(saved);
         } finally {
           btn.disabled = false;
           btn.textContent = orig;

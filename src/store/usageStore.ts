@@ -38,22 +38,28 @@ function entryToBlock(addedAt: string, dbId: string, title: string, content: str
 function parseEntries(raw: string): UsageEntry[] {
   const entries: UsageEntry[] = [];
   const blocks = raw.split(/^## /m).slice(1);
+  const headingRe = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2} · .+ · .+/;
   for (const b of blocks) {
     const firstLineEnd = b.indexOf('\n');
     const headingLine = (firstLineEnd >= 0 ? b.slice(0, firstLineEnd) : b).trim();
-    const body = firstLineEnd >= 0 ? b.slice(firstLineEnd + 1).trim() : '';
-    if (!body) continue;
-    const parts = headingLine.split('·').map((s) => s.trim());
-    if (parts.length < 3) continue;
-    const [addedAt, dbId, ...rest] = parts;
-    const title = rest.join(' · ');
-    entries.push({
-      index: entries.length + 1,
-      addedAt,
-      dbId,
-      title,
-      content: body,
-    });
+    if (headingRe.test(headingLine)) {
+      const body = firstLineEnd >= 0 ? b.slice(firstLineEnd + 1).trim() : '';
+      const parts = headingLine.split('·').map((s) => s.trim());
+      const [addedAt, dbId, ...rest] = parts;
+      entries.push({
+        index: entries.length + 1,
+        addedAt,
+        dbId,
+        title: rest.join(' · '),
+        content: body,
+      });
+    } else if (entries.length > 0) {
+      entries[entries.length - 1].content = (
+        entries[entries.length - 1].content +
+        (entries[entries.length - 1].content ? '\n\n## ' : '## ') +
+        b
+      ).trim();
+    }
   }
   return entries;
 }
@@ -94,7 +100,8 @@ export function addUsage(title: string, content: string, dbId: string): UsageEnt
     entryToBlock(addedAt, dbId.trim(), title.trim(), content),
     'utf8'
   );
-  return { index: 0, addedAt, dbId: dbId.trim(), title: title.trim(), content: content.trim() };
+  const all = listUsage();
+  return { ...all[all.length - 1], content: content.trim(), title: title.trim() };
 }
 
 export function clearUsage(dbId?: string): number {
