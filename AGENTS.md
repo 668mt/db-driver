@@ -39,6 +39,9 @@ db-driver/
 │   │   ├── count.ts          # 行数
 │   │   ├── execute.ts        # 执行 SQL
 │   │   ├── explain.ts        # EXPLAIN 执行计划
+│   │   ├── export.ts         # 加密导出配置
+│   │   ├── import.ts         # 加密导入配置
+│   │   ├── usage.ts          # 用法笔记（list/save/edit/clear/rm）
 │   │   └── install.ts        # 安装 skill
 │   ├── db/
 │   │   ├── index.ts          # DbDriver 接口 + createDriver 工厂
@@ -48,9 +51,12 @@ db-driver/
 │   │   ├── permissions.ts    # AST 解析 + 权限校验（node-sql-parser）
 │   │   └── types.ts          # DbConnectionConfig / QueryResult / SchemaTable 等
 │   ├── store/
-│   │   └── configStore.ts    # 配置的 JSON 读写（含 evictDriver 联动）
+│   │   ├── configStore.ts    # 配置的加密读写（含 evictDriver 联动）
+│   │   └── usageStore.ts     # 用法笔记的 Markdown 读写（明文，按用户要求）
 │   ├── utils/
-│   │   ├── paths.ts          # CONFIG_FILE / SKILL_DEST 等路径常量
+│   │   ├── paths.ts          # CONFIG_DIR / SKILL_DEST / USAGE_FILE 等路径
+│   │   ├── crypto.ts         # AES-256-GCM 加密（keyring 用 + passphrase 用）
+│   │   ├── ident.ts          # quoteIdent / quoteQualifiedTable
 │   │   └── errors.ts         # MySQL errno / PG sqlState → 中文友好提示
 │   └── web/
 │       ├── server.ts         # config 子命令的本地 HTTP 服务

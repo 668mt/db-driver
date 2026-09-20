@@ -166,6 +166,22 @@ db-driver import backup.exp --passphrase 'MyStrongPwd!' --yes --replace
 
 文件格式：`AES-256-GCM` 加密二进制（PBKDF2 100k 迭代，passphrase 派生 key），跨机器可恢复。
 
+## 用法笔记（明文 Markdown，便于人工查看/编辑）
+
+```bash
+db-driver usage                                          # 列出所有用法
+db-driver usage list                                     # 等价
+db-driver usage save --sql "SELECT * FROM users ..." --note "查询活跃用户"  # 追加
+db-driver usage edit                                     # 用 $EDITOR 打开整个文件
+db-driver usage rm 3                                     # 删除第 3 条
+db-driver usage clear --yes                              # 清空
+```
+
+- 存于 `usage.md`（**明文 Markdown**，**按用户要求不加密**——SQL 习惯公开/分享，不含密码）
+- 默认 `db-driver usage` 调出最近积累的 SQL 模板，方便复用
+- 加 `--json` 输出结构化数据（AI 解析用）
+- 手动编辑随时可，不会破坏文件结构（解析容错）
+
 **安全机制：**
 - 源码链接（`npm link` / `git clone`）下运行会自动拒绝，提示用 `git pull && npm run build`
 - 不允许降级（要降级手动 `npm install -g db-driver@<ver>`）

@@ -19,6 +19,13 @@ import { runExplain } from './commands/explain.js';
 import { runUpdate } from './commands/update.js';
 import { runExport } from './commands/export.js';
 import { runImport } from './commands/import.js';
+import {
+  runUsageClear,
+  runUsageEdit,
+  runUsageList,
+  runUsageRemove,
+  runUsageSave,
+} from './commands/usage.js';
 import { SKILL_DEST } from './utils/paths.js';
 import { clearPool } from './db/pool.js';
 import type { DbType } from './db/types.js';
@@ -248,6 +255,58 @@ program
     }
   );
 
+const usageCmd = program
+  .command('usage')
+  .description('管理 SQL 用法笔记（明文 Markdown，便于人工查看/编辑）')
+  .option('--json', '以 JSON 格式输出', false)
+  .action(async (opts: { json: boolean }) => {
+    await runUsageList({ json: !!opts.json });
+  });
+
+usageCmd
+  .command('list')
+  .description('列出所有保存的用法')
+  .option('--json', '以 JSON 格式输出', false)
+  .action(async (opts: { json: boolean }) => {
+    await runUsageList({ json: !!opts.json });
+  });
+
+usageCmd
+  .command('save')
+  .description('追加一条新用法')
+  .requiredOption('--sql <sql>', 'SQL 文本')
+  .option('--note <note>', '可选说明')
+  .option('--json', '以 JSON 格式输出', false)
+  .action(async (opts: { sql: string; note?: string; json: boolean }) => {
+    await runUsageSave(opts.sql, opts.note, { json: !!opts.json });
+  });
+
+usageCmd
+  .command('edit')
+  .description('用 $EDITOR 打开整个 usage.md 手动整理')
+  .action(async () => {
+    await runUsageEdit();
+  });
+
+usageCmd
+  .command('clear')
+  .description('清空所有用法（不可撤销）')
+  .option('--yes', '跳过确认', false)
+  .option('--json', '以 JSON 格式输出', false)
+  .action(async (opts: { yes: boolean; json: boolean }) => {
+    await runUsageClear({ yes: !!opts.yes, json: !!opts.json });
+  });
+
+usageCmd
+  .command('rm <index>')
+  .description('删除指定序号的用法（先 db-driver usage list 看序号）')
+  .option('--json', '以 JSON 格式输出', false)
+  .action(async (indexStr: string, opts: { json: boolean }) => {
+    const index = parseInt(indexStr, 10);
+    if (Number.isNaN(index)) throw new Error(`序号必须是整数: ${indexStr}`);
+    await runUsageRemove(index, { json: !!opts.json });
+  });
+
 program.addHelpText(
   'after',
   `
@@ -295,6 +354,13 @@ SQL 执行:
   $ db-driver export backup.exp --passphrase 'xxx' --no-include-passwords  # 脱敏导出
   $ db-driver import backup.exp --passphrase 'MyStrongPwd!'    # 在新机器导入
   $ db-driver import backup.exp --passphrase 'xxx' --replace   # 替换现有同 dbId
+
+用法笔记 (明文 Markdown):
+  $ db-driver usage                                       # 列出所有用法
+  $ db-driver usage save --sql "SELECT ..." --note "..."   # 追加一条
+  $ db-driver usage edit                                  # 用 $EDITOR 手动整理
+  $ db-driver usage rm 3                                  # 删除第 3 条
+  $ db-driver usage clear --yes                           # 清空
 
 Skill 安装位置: ${SKILL_DEST}
 (连接配置加密存储于 OS keyring；具体路径不公开)
