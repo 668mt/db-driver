@@ -17,6 +17,7 @@
     "build:ui": "vite build",
     "dev": "concurrently -k -n tsc,server,ui -c yellow,blue,green \"tsc --watch\" \"wait-on dist/cli.js && node --enable-source-maps dist/cli.js console --port 7842\" \"vite\"",
     "dev:server": "wait-on dist/cli.js && node --enable-source-maps dist/cli.js console --port 7842",
+    "dev:stop": "node scripts/dev-stop.js",
     "dev:ui": "vite",
     "start": "node --enable-source-maps dist/cli.js",
     "prepublishOnly": "npm run build",

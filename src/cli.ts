@@ -281,14 +281,25 @@ usageCmd
 
 usageCmd
   .command('save')
-  .description('追加一条新用法（--dbId / --title / --content 都必填）')
+  .description('追加一条新用法（--dbId / --title 必填；--content 或 --content-file 二选一）')
   .requiredOption('--dbId <id>', '绑定的数据库连接别名')
   .requiredOption('--title <t>', '短标题')
-  .requiredOption('--content <md>', 'Markdown 内容，可含 ```sql 代码块')
+  .option('--content <md>', 'Markdown 内容（可含 ```sql 代码块）')
+  .option('--content-file <path>', '从文件读取内容（- 表示 stdin，适合长 SQL/Markdown）')
   .option('--json', '以 JSON 格式输出', false)
-  .action(async (opts: { dbId: string; title: string; content: string; json: boolean }) => {
-    await runUsageSave(opts.title, opts.content, opts.dbId, { json: !!opts.json });
-  });
+  .action(
+    async (opts: { dbId: string; title: string; content?: string; contentFile?: string; json: boolean }) => {
+      let content = opts.content ?? '';
+      if (opts.contentFile) {
+        if (opts.content) {
+          throw new Error('--content 和 --content-file 只能二选一');
+        }
+        const path = opts.contentFile === '-' ? 0 : opts.contentFile;
+        content = readFileSync(path, 'utf8');
+      }
+      await runUsageSave(opts.title, content, opts.dbId, { json: !!opts.json });
+    }
+  );
 
 usageCmd
   .command('edit')
@@ -368,7 +379,9 @@ SQL 执行:
 用法笔记 (明文 Markdown，按 dbId 绑定):
   $ db-driver usage                                       # 列出所有用法
   $ db-driver usage list --dbId my-app                    # 查某个库的用法
-  $ db-driver usage save --dbId my-app --content "..."   # 追加一条（Markdown 内容，可含 SQL 代码块）
+  $ db-driver usage save --dbId my-app --title "..." --content "..."   # 追加一条
+  $ db-driver usage save --dbId my-app --title "..." --content-file ./note.md  # 从文件读
+  $ db-driver usage save --dbId my-app --title "..." --content-file -            # 从 stdin 读
   $ db-driver usage edit                                  # 用 $EDITOR 手动整理
   $ db-driver usage rm 3                                  # 删除第 3 条
   $ db-driver usage clear --dbId my-app --yes             # 清空某个库
