@@ -219,10 +219,11 @@ db-driver config --web
 | `db-driver export <file> --passphrase <pwd>` | 加密导出所有连接到文件 |
 | `db-driver import <file> --passphrase <pwd> [--replace]` | 从加密文件导入 |
 | `db-driver usage` | 列出保存的 SQL 用法笔记 |
-| `db-driver usage save --sql ... --note ...` | 追加一条用法 |
+| `db-driver usage list --dbId <id>` | 查某个 dbId 的用法 |
+| `db-driver usage save --dbId <id> --sql ... --note ...` | 追加一条用法（必填 --dbId） |
 | `db-driver usage edit` | 用 $EDITOR 编辑整个 usage.md |
 | `db-driver usage rm <index>` | 删除指定序号的用法 |
-| `db-driver usage clear --yes` | 清空用法 |
+| `db-driver usage clear [--dbId <id>] --yes` | 清空用法（可指定 dbId） |
 
 ### 通用选项
 
