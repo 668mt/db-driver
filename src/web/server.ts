@@ -21,7 +21,7 @@ import {
 import type { DbConnectionConfig, DbPermissions, DbType } from '../db/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PUBLIC_DIR = join(__dirname, 'public');
+const PUBLIC_DIR = join(__dirname);
 const PKG_PATH = join(__dirname, '..', '..', 'package.json');
 
 let APP_VERSION = '0.0.0';
@@ -147,12 +147,35 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
 
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
     const tpl = readFileSync(join(PUBLIC_DIR, 'index.html'), 'utf8');
-    const html = tpl.replace(/__APP_VERSION__/g, APP_VERSION);
+    const html = tpl
+      .replace(/__APP_VERSION__/g, APP_VERSION)
+      .replace(/<meta name="version" content="[^"]*"\s*\/?>/, `<meta name="version" content="${APP_VERSION}">`);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.end(html);
+    return;
+  }
+
+  // 静态资源：Vite 输出在 dist/web/assets/*
+  if (req.method === 'GET' && url.pathname.startsWith('/assets/')) {
+    try {
+      const data = readFileSync(join(PUBLIC_DIR, url.pathname));
+      const ext = url.pathname.split('.').pop() ?? '';
+      const mime: Record<string, string> = {
+        js: 'application/javascript; charset=utf-8',
+        css: 'text/css; charset=utf-8',
+        svg: 'image/svg+xml',
+        png: 'image/png',
+        ico: 'image/x-icon',
+      };
+      res.setHeader('Content-Type', mime[ext] ?? 'application/octet-stream');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.end(data);
+    } catch {
+      jsonResponse(res, 404, { error: 'not found' });
+    }
     return;
   }
 

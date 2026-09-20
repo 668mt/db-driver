@@ -12,10 +12,10 @@
     "skill"
   ],
   "scripts": {
-    "build": "tsc && cpx \"src/web/public/**/*\" dist/web/public",
+    "build": "tsc && vite build",
     "build:tsc": "tsc",
-    "build:assets": "cpx \"src/web/public/**/*\" dist/web/public",
-    "dev": "tsc --watch",
+    "build:ui": "vite build",
+    "dev": "vite",
     "start": "node --enable-source-maps dist/cli.js",
     "prepublishOnly": "npm run build",
     "release:patch": "npm version patch && npm publish",
@@ -45,21 +45,26 @@
   "dependencies": {
     "@napi-rs/keyring": "^2.1.0",
     "@types/marked": "^5.0.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "commander": "^12.1.0",
     "marked": "^18.0.13",
     "mysql2": "^3.11.4",
     "node-sql-parser": "^5.4.0",
     "open": "^10.1.0",
     "pg": "^8.13.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
     "@types/pg": "^8.11.10",
     "@types/ws": "^8.5.13",
-    "cpx2": "^9.0.3",
+    "@vitejs/plugin-react": "^6.1.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vite": "^8.3.0"
   },
   "engines": {
     "node": ">=18"
