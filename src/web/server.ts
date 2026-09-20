@@ -3,6 +3,9 @@ import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
+import { marked } from 'marked';
+
+marked.setOptions({ gfm: true, breaks: true });
 import {
   deleteConnection,
   getConnection,
@@ -290,6 +293,17 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
       return;
     }
     jsonResponse(res, 200, { ok: true, removed });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/render') {
+    try {
+      const body = (await readJson<{ markdown?: string }>(req)) ?? {};
+      const html = marked.parse(body.markdown ?? '', { async: false }) as string;
+      jsonResponse(res, 200, { html });
+    } catch (e) {
+      jsonResponse(res, 400, { error: (e as Error).message });
+    }
     return;
   }
 

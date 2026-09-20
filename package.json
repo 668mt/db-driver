@@ -44,7 +44,9 @@
   "homepage": "https://gitee.com/fourstars/ai-studio/blob/master/db-driver/README.md",
   "dependencies": {
     "@napi-rs/keyring": "^2.1.0",
+    "@types/marked": "^5.0.2",
     "commander": "^12.1.0",
+    "marked": "^18.0.13",
     "mysql2": "^3.11.4",
     "node-sql-parser": "^5.4.0",
     "open": "^10.1.0",
