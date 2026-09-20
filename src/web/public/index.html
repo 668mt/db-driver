@@ -726,6 +726,7 @@
 
               <div class="actions">
                 <button class="primary" id="usage-save-btn">保存</button>
+                <button class="danger" id="usage-delete-btn" style="display:none">删除</button>
                 <button class="ghost" id="usage-cancel-btn">取消</button>
               </div>
             </div>
@@ -1065,6 +1066,7 @@
         usagePlaceholderEl.style.display = 'none';
         $('usage-form-title').textContent = '编辑用法 [' + index + ']';
         $('usage-form-mode').textContent = '编辑中';
+        $('usage-delete-btn').style.display = '';
         renderUsageList();
       }
 
@@ -1072,10 +1074,12 @@
         currentUsage = null;
         $('usage-note').value = '';
         $('usage-sql').value = '';
+        usageDbIdEl.value = '';
         usageFormEl.style.display = '';
         usagePlaceholderEl.style.display = 'none';
         $('usage-form-title').textContent = '新增用法';
         $('usage-form-mode').textContent = '新增';
+        $('usage-delete-btn').style.display = 'none';
         renderUsageList();
       }
 
@@ -1084,7 +1088,36 @@
         usageFormEl.style.display = 'none';
         usagePlaceholderEl.style.display = '';
         currentUsage = null;
+        $('usage-delete-btn').style.display = 'none';
         renderUsageList();
+      });
+
+      $('usage-delete-btn').addEventListener('click', async () => {
+        if (!currentUsage) return;
+        const idx = currentUsage.index;
+        const btn = $('usage-delete-btn');
+        btn.disabled = true;
+        const orig = btn.textContent;
+        btn.innerHTML = '<span class="spinner"></span>删除中...';
+        try {
+          const res = await fetch(`/api/usage/${idx}`, { method: 'DELETE' });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            showToast('删除失败: ' + (err.error || res.status), 'error');
+            return;
+          }
+          showToast('✓ 已删除');
+          currentUsage = null;
+          $('usage-note').value = '';
+          $('usage-sql').value = '';
+          $('usage-delete-btn').style.display = 'none';
+          usageFormEl.style.display = 'none';
+          usagePlaceholderEl.style.display = '';
+          await loadUsageList();
+        } finally {
+          btn.disabled = false;
+          btn.textContent = orig;
+        }
       });
 
       usageFilterEl.addEventListener('change', () => {

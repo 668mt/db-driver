@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 
 import { defaultPortFor, runConfigCli } from './commands/config.js';
-import { runConsole } from './commands/console.js';
+import { runConsole, DEFAULT_CONSOLE_PORT } from './commands/console.js';
 import { runInstall } from './commands/install.js';
 import { runSchema } from './commands/schema.js';
 import { runExecute } from './commands/execute.js';
@@ -45,9 +45,12 @@ program
 
 program
   .command('console')
-  .description('打开本地网页控制台（同时管理连接配置 + SQL 用法笔记）')
-  .action(async () => {
-    await runConsole();
+  .description(`打开本地网页控制台（同时管理连接配置 + SQL 用法笔记，默认端口 ${DEFAULT_CONSOLE_PORT}）`)
+  .option('--port <n>', `指定端口（默认 ${DEFAULT_CONSOLE_PORT}，被占用时自动改用其他端口）`, (v) =>
+    parseInt(v, 10)
+  )
+  .action(async (opts: { port?: number }) => {
+    await runConsole({ port: opts.port });
   });
 
 program

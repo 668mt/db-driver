@@ -48,7 +48,7 @@ interface SavedConnectionPayload {
   permissions: DbPermissions;
 }
 
-export async function startConfigServer(): Promise<ServerHandle> {
+export async function startConfigServer(preferredPort?: number): Promise<ServerHandle> {
   const httpServer = createServer((req, res) => handleHttp(req, res));
   const wss = new WebSocketServer({ server: httpServer });
   let lastClientGoneCb: (() => void) | null = null;
@@ -61,13 +61,23 @@ export async function startConfigServer(): Promise<ServerHandle> {
     });
   });
 
-  const port = await new Promise<number>((resolve) => {
-    httpServer.listen(0, '127.0.0.1', () => {
-      const addr = httpServer.address();
-      if (addr && typeof addr === 'object') resolve(addr.port);
-      else resolve(0);
-    });
+  const port = await new Promise<number>((resolve, reject) => {
+    httpServer.once('error', reject);
+    try {
+      httpServer.listen(preferredPort ?? 0, '127.0.0.1', () => {
+        const addr = httpServer.address();
+        if (addr && typeof addr === 'object') resolve(addr.port);
+        else reject(new Error('listen() 未返回有效端口'));
+      });
+    } catch (e) {
+      reject(e);
+    }
   });
+
+  if (port === 0) {
+    httpServer.close();
+    throw new Error('listen() 失败（port=0）');
+  }
 
   const url = `http://127.0.0.1:${port}`;
 
