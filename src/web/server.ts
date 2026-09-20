@@ -127,6 +127,8 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
     const html = readFileSync(join(PUBLIC_DIR, 'index.html'));
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     res.end(html);
     return;
   }

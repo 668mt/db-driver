@@ -795,9 +795,6 @@
         document.querySelectorAll('[data-pane]').forEach((el) => {
           el.style.display = el.dataset.pane === name ? '' : 'none';
         });
-        if (name === 'connections' && !current && !$('form').style.display !== 'none') {
-          $('placeholder').style.display = '';
-        }
       }
       document.querySelectorAll('.tab').forEach((el) => {
         el.addEventListener('click', () => switchTab(el.dataset.tab));
