@@ -19,6 +19,15 @@ import type { DbConnectionConfig, DbPermissions, DbType } from '../db/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, 'public');
+const PKG_PATH = join(__dirname, '..', '..', 'package.json');
+
+let APP_VERSION = '0.0.0';
+try {
+  const pkg = JSON.parse(readFileSync(PKG_PATH, 'utf8')) as { version?: string };
+  if (pkg.version) APP_VERSION = pkg.version;
+} catch {
+  /* 保持默认 0.0.0 */
+}
 
 export interface ServerHandle {
   port: number;
@@ -124,7 +133,8 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
   const url = new URL(req.url ?? '/', 'http://localhost');
 
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
-    const html = readFileSync(join(PUBLIC_DIR, 'index.html'));
+    const tpl = readFileSync(join(PUBLIC_DIR, 'index.html'), 'utf8');
+    const html = tpl.replace(/__APP_VERSION__/g, APP_VERSION);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
