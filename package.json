@@ -44,9 +44,11 @@
   "homepage": "https://gitee.com/fourstars/ai-studio/blob/master/db-driver/README.md",
   "dependencies": {
     "@napi-rs/keyring": "^2.1.0",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/marked": "^5.0.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "better-sqlite3": "^13.0.3",
     "commander": "^12.1.0",
     "marked": "^18.0.13",
     "mysql2": "^3.11.4",

@@ -180,7 +180,9 @@ db-driver usage rm 3                                     # 删除第 3 条
 db-driver usage clear --dbId my-app --yes                # 清空某个库（不加 --dbId 清全部）
 ```
 
-- 存于 `usage.md`（**明文 Markdown**，**按用户要求不加密**——SQL 习惯公开/分享，不含密码）
+- 存于 `usage.db`（**SQLite** 文件，**按用户要求不加密**——SQL 习惯公开/分享，不含密码）
+- schema: `usage_entries(id, added_at, db_id, title, content)`
+- 用 CLI `usage save/list/rm/clear` 增删改查；高级用户可用 `sqlite3` CLI 或 GUI 工具直接编辑
 - **每条用法必须绑定 dbId**（数据库连接别名），避免多库 SQL 混在一起
 - 加 `--json` 输出结构化数据（AI 解析用）
 - 手动编辑随时可，不会破坏文件结构（解析容错；旧格式没 dbId 的会被跳过）

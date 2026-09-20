@@ -111,9 +111,13 @@ export async function runUsageSave(
 }
 
 export async function runUsageEdit(): Promise<void> {
-  await openInEditor(usageFilePath());
-  const entries = listUsage();
-  console.log(`\n✅ 已重新加载 ${entries.length} 条用法`);
+  console.log('用法笔记存在 SQLite 数据库中（' + usageFilePath() + '）。');
+  console.log('请用 CLI 增删改查：');
+  console.log('  db-driver usage save --dbId <id> --title "..." --content "..."');
+  console.log('  db-driver usage list [--dbId <id>] [--search <kw>]');
+  console.log('  db-driver usage rm <index>');
+  console.log('  db-driver usage clear [--dbId <id>] --yes');
+  console.log('高级用户：可以用 sqlite3 CLI 或 GUI 工具直接编辑 usage.db。');
   closeConfigDb();
 }
 

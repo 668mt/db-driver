@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'fs';
+import Database from 'better-sqlite3';
+import { mkdirSync } from 'fs';
 import { dirname } from 'path';
 
 import { USAGE_FILE } from '../utils/paths.js';
@@ -11,12 +12,23 @@ export interface UsageEntry {
   content: string;
 }
 
-const HEADER = `# db-driver 用法笔记
+interface Row {
+  id: number;
+  added_at: string;
+  db_id: string;
+  title: string;
+  content: string;
+}
 
-每条笔记绑定一个 dbId（数据库连接别名）。
-标题是简短说明；正文是 Markdown 内容（可含 \`\`\`sql 代码块）。
-
-`;
+function rowToEntry(row: Row): UsageEntry {
+  return {
+    index: row.id,
+    addedAt: row.added_at,
+    dbId: row.db_id,
+    title: row.title,
+    content: row.content,
+  };
+}
 
 function now(): string {
   const d = new Date();
@@ -24,63 +36,46 @@ function now(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function ensureFile(): void {
+let dbInstance: Database.Database | null = null;
+
+function getDb(): Database.Database {
+  if (dbInstance) return dbInstance;
   mkdirSync(dirname(USAGE_FILE), { recursive: true });
-  if (!existsSync(USAGE_FILE)) {
-    writeFileSync(USAGE_FILE, HEADER, 'utf8');
-  }
-}
-
-function entryToBlock(addedAt: string, dbId: string, title: string, content: string): string {
-  return `## ${addedAt} · ${dbId} · ${title}\n\n${content.trim()}\n\n`;
-}
-
-function parseEntries(raw: string): UsageEntry[] {
-  const entries: UsageEntry[] = [];
-  const blocks = raw.split(/^## /m).slice(1);
-  const headingRe = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2} · .+ · .+/;
-  for (const b of blocks) {
-    const firstLineEnd = b.indexOf('\n');
-    const headingLine = (firstLineEnd >= 0 ? b.slice(0, firstLineEnd) : b).trim();
-    if (headingRe.test(headingLine)) {
-      const body = firstLineEnd >= 0 ? b.slice(firstLineEnd + 1).trim() : '';
-      const parts = headingLine.split('·').map((s) => s.trim());
-      const [addedAt, dbId, ...rest] = parts;
-      entries.push({
-        index: entries.length + 1,
-        addedAt,
-        dbId,
-        title: rest.join(' · '),
-        content: body,
-      });
-    } else if (entries.length > 0) {
-      entries[entries.length - 1].content = (
-        entries[entries.length - 1].content +
-        (entries[entries.length - 1].content ? '\n\n## ' : '## ') +
-        b
-      ).trim();
-    }
-  }
-  return entries;
+  const db = new Database(USAGE_FILE);
+  db.pragma('journal_mode = WAL');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS usage_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      added_at TEXT NOT NULL,
+      db_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_usage_db_id ON usage_entries(db_id);
+    CREATE INDEX IF NOT EXISTS idx_usage_added_at ON usage_entries(added_at DESC);
+  `);
+  dbInstance = db;
+  return db;
 }
 
 export function listUsage(dbId?: string, keyword?: string): UsageEntry[] {
-  if (!existsSync(USAGE_FILE)) return [];
-  let all = parseEntries(readFileSync(USAGE_FILE, 'utf8'));
-  if (dbId) all = all.filter((e) => e.dbId === dbId);
-  if (keyword && keyword.trim()) {
-    const k = keyword.toLowerCase();
-    all = all.filter(
-      (e) =>
-        e.dbId.toLowerCase().includes(k) ||
-        e.title.toLowerCase().includes(k) ||
-        e.content.toLowerCase().includes(k)
-    );
+  const db = getDb();
+  const conds: string[] = [];
+  const params: unknown[] = [];
+  if (dbId) {
+    conds.push('db_id = ?');
+    params.push(dbId);
   }
-  return all.sort((a, b) => {
-    const c = a.dbId.localeCompare(b.dbId);
-    return c !== 0 ? c : a.title.localeCompare(b.title);
-  });
+  if (keyword && keyword.trim()) {
+    conds.push('(LOWER(title) LIKE ? OR LOWER(db_id) LIKE ? OR LOWER(content) LIKE ?)');
+    const k = `%${keyword.toLowerCase()}%`;
+    params.push(k, k, k);
+  }
+  const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+  const rows = db.prepare(
+    `SELECT id, added_at, db_id, title, content FROM usage_entries ${where} ORDER BY db_id ASC, title ASC, id ASC`
+  ).all(...params) as Row[];
+  return rows.map(rowToEntry);
 }
 
 export function addUsage(title: string, content: string, dbId: string): UsageEntry {
@@ -93,40 +88,35 @@ export function addUsage(title: string, content: string, dbId: string): UsageEnt
   if (!content || !content.trim()) {
     throw new Error('笔记内容不能为空');
   }
-  ensureFile();
-  const addedAt = now();
-  appendFileSync(
-    USAGE_FILE,
-    entryToBlock(addedAt, dbId.trim(), title.trim(), content),
-    'utf8'
-  );
-  const all = listUsage();
-  return { ...all[all.length - 1], content: content.trim(), title: title.trim() };
+  const db = getDb();
+  const result = db
+    .prepare(
+      `INSERT INTO usage_entries (added_at, db_id, title, content) VALUES (?, ?, ?, ?)`
+    )
+    .run(now(), dbId.trim(), title.trim(), content.trim());
+  return {
+    index: Number(result.lastInsertRowid),
+    addedAt: now(),
+    dbId: dbId.trim(),
+    title: title.trim(),
+    content: content.trim(),
+  };
 }
 
 export function clearUsage(dbId?: string): number {
-  const all = listUsage();
-  const before = all.length;
-  const filtered = dbId ? all.filter((e) => e.dbId !== dbId) : [];
-  ensureFile();
-  let raw = HEADER;
-  for (const e of filtered)
-    raw += entryToBlock(e.addedAt, e.dbId, e.title, e.content);
-  writeFileSync(USAGE_FILE, raw, 'utf8');
-  return before - filtered.length;
+  const db = getDb();
+  const sql = dbId ? `DELETE FROM usage_entries WHERE db_id = ?` : `DELETE FROM usage_entries`;
+  const params = dbId ? [dbId] : [];
+  const result = db.prepare(sql).run(...params);
+  return Number(result.changes);
 }
 
 export function removeUsage(index: number): UsageEntry | null {
-  const all = listUsage();
-  const target = all.find((e) => e.index === index);
-  if (!target) return null;
-  const remaining = all.filter((e) => e.index !== index);
-  ensureFile();
-  let raw = HEADER;
-  for (const e of remaining)
-    raw += entryToBlock(e.addedAt, e.dbId, e.title, e.content);
-  writeFileSync(USAGE_FILE, raw, 'utf8');
-  return target;
+  const db = getDb();
+  const row = db.prepare(`SELECT id, added_at, db_id, title, content FROM usage_entries WHERE id = ?`).get(index) as Row | undefined;
+  if (!row) return null;
+  db.prepare(`DELETE FROM usage_entries WHERE id = ?`).run(index);
+  return rowToEntry(row);
 }
 
 export function updateUsage(
@@ -135,24 +125,34 @@ export function updateUsage(
   content: string | undefined,
   dbId: string | undefined
 ): UsageEntry | null {
-  const all = listUsage();
-  const idx = all.findIndex((e) => e.index === index);
-  if (idx < 0) return null;
-  const finalTitle = (title ?? all[idx].title).trim();
-  const finalContent = (content ?? all[idx].content).trim();
-  const finalDbId = (dbId ?? all[idx].dbId).trim();
+  const db = getDb();
+  const row = db.prepare(`SELECT id, added_at, db_id, title, content FROM usage_entries WHERE id = ?`).get(index) as Row | undefined;
+  if (!row) return null;
+  const finalTitle = (title ?? row.title).trim();
+  const finalContent = (content ?? row.content).trim();
+  const finalDbId = (dbId ?? row.db_id).trim();
   if (!finalTitle) throw new Error('标题不能为空');
   if (!finalContent) throw new Error('笔记内容不能为空');
   if (!finalDbId) throw new Error('dbId 不能为空');
-  all[idx] = { ...all[idx], dbId: finalDbId, title: finalTitle, content: finalContent };
-  ensureFile();
-  let raw = HEADER;
-  for (const e of all)
-    raw += entryToBlock(e.addedAt, e.dbId, e.title, e.content);
-  writeFileSync(USAGE_FILE, raw, 'utf8');
-  return all[idx];
+  db.prepare(
+    `UPDATE usage_entries SET title = ?, content = ?, db_id = ? WHERE id = ?`
+  ).run(finalTitle, finalContent, finalDbId, index);
+  return {
+    index: row.id,
+    addedAt: row.added_at,
+    dbId: finalDbId,
+    title: finalTitle,
+    content: finalContent,
+  };
 }
 
 export function usageFilePath(): string {
   return USAGE_FILE;
+}
+
+export function closeUsageDb(): void {
+  if (dbInstance) {
+    dbInstance.close();
+    dbInstance = null;
+  }
 }
