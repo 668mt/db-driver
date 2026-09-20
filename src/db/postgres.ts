@@ -70,8 +70,8 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
         params.push(`%${options.search}%`);
       }
 
-      let sql = `SELECT c.relname AS tableName,
-                        obj_description(c.oid, 'pg_class') AS tableComment
+      let sql = `SELECT c.relname AS "tableName",
+                        obj_description(c.oid, 'pg_class') AS "tableComment"
                  FROM pg_class c
                  JOIN pg_namespace n ON n.oid = c.relnamespace
                  WHERE ${where.join(' AND ')}
@@ -93,8 +93,8 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
       await ensureConnected();
       const targetSchema = activeSchema(schema);
       const tableResult = await client.query(
-        `SELECT c.relname AS tableName,
-                obj_description(c.oid, 'pg_class') AS tableComment
+        `SELECT c.relname AS "tableName",
+                obj_description(c.oid, 'pg_class') AS "tableComment"
          FROM pg_class c
          JOIN pg_namespace n ON n.oid = c.relnamespace
          WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind = 'r'`,
@@ -103,13 +103,13 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
       if (tableResult.rows.length === 0) return null;
 
       const columnsResult = await client.query(
-        `SELECT c.relname AS tableName,
-                a.attname AS columnName,
-                format_type(a.atttypid, a.atttypmod) AS dataType,
-                NOT a.attnotnull AS isNullable,
-                pg_get_expr(d.adbin, d.adrelid) AS columnDefault,
-                '' AS columnKey,
-                col_description(c.oid, a.attnum) AS columnComment
+        `SELECT c.relname AS "tableName",
+                a.attname AS "columnName",
+                format_type(a.atttypid, a.atttypmod) AS "dataType",
+                NOT a.attnotnull AS "isNullable",
+                pg_get_expr(d.adbin, d.adrelid) AS "columnDefault",
+                '' AS "columnKey",
+                col_description(c.oid, a.attnum) AS "columnComment"
          FROM pg_attribute a
          JOIN pg_class c ON c.oid = a.attrelid
          JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -123,13 +123,13 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
       );
 
       const indexResult = await client.query(
-        `SELECT i.relname AS indexName,
-                a.attname AS columnName,
-                (array_position(ix.indkey, a.attnum)) AS seqInIndex,
-                ix.indisunique AS isUnique,
-                ix.indisprimary AS isPrimary,
-                am.amname AS indexType,
-                '' AS comment
+        `SELECT i.relname AS "indexName",
+                a.attname AS "columnName",
+                (array_position(ix.indkey, a.attnum)) AS "seqInIndex",
+                ix.indisunique AS "isUnique",
+                ix.indisprimary AS "isPrimary",
+                am.amname AS "indexType",
+                '' AS "comment"
          FROM pg_index ix
          JOIN pg_class t ON t.oid = ix.indrelid
          JOIN pg_class i ON i.oid = ix.indexrelid
@@ -165,8 +165,8 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
       const targetSchema = activeSchema(schema);
 
       const tablesResult = await client.query(
-        `SELECT c.relname AS tableName,
-                obj_description(c.oid, 'pg_class') AS tableComment
+        `SELECT c.relname AS "tableName",
+                obj_description(c.oid, 'pg_class') AS "tableComment"
          FROM pg_class c
          JOIN pg_namespace n ON n.oid = c.relnamespace
          WHERE n.nspname = $1 AND c.relkind = 'r'
@@ -177,13 +177,13 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
       if (tablesResult.rows.length === 0) return [];
 
       const columnsResult = await client.query(
-        `SELECT c.relname AS tableName,
-                a.attname AS columnName,
-                format_type(a.atttypid, a.atttypmod) AS dataType,
-                NOT a.attnotnull AS isNullable,
-                pg_get_expr(d.adbin, d.adrelid) AS columnDefault,
-                '' AS columnKey,
-                col_description(c.oid, a.attnum) AS columnComment
+        `SELECT c.relname AS "tableName",
+                a.attname AS "columnName",
+                format_type(a.atttypid, a.atttypmod) AS "dataType",
+                NOT a.attnotnull AS "isNullable",
+                pg_get_expr(d.adbin, d.adrelid) AS "columnDefault",
+                '' AS "columnKey",
+                col_description(c.oid, a.attnum) AS "columnComment"
          FROM pg_attribute a
          JOIN pg_class c ON c.oid = a.attrelid
          JOIN pg_namespace n ON n.oid = c.relnamespace
