@@ -22,8 +22,8 @@ export function UsageList({ list, active, filterDesc, onSelect }: Props) {
             className={'list-item' + (active === u.index ? ' active' : '')}
             onClick={() => onSelect(u)}
           >
-            <div className="list-item-title">[{u.index}] {u.dbId}</div>
-            <div className="list-item-meta">{u.addedAt}</div>
+            <div className="list-item-title">[{u.index}] {u.title}</div>
+            <div className="list-item-meta">{u.dbId} · {u.addedAt}</div>
             <div className="list-item-desc">{preview}</div>
           </div>
         );
