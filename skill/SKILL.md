@@ -29,6 +29,9 @@ db-driver config --web
 
 - 会在浏览器中打开一个本地配置页面（127.0.0.1 上随机端口）。
 - 配置项：`dbId`、类型（MySQL/PostgreSQL）、host、port、user、password、database。
+- **PostgreSQL 额外字段**：
+  - `schema`（可选，默认 `public`）—— PG 一个 catalog 内有多个 schema，列举/采样默认只在配置的这个 schema 内。
+- **可选**：`description` —— 连接描述，便于区分多套同形环境（生产/预发/测试）。
 - **权限开关**（必须明确告诉用户是否要开启）：
   - `dmlQuery`：SELECT 查询
   - `dmlUpdate`：INSERT / UPDATE
@@ -47,6 +50,8 @@ db-driver config \
   --password secret \
   --database app \
   [--port 3306] \
+  [--schema public] \                # PG 用，MySQL 可省略
+  [--description "生产-主库"] \
   [--dml-query | --no-dml-query] \
   [--dml-update] [--dml-delete] [--ddl] \
   [--test]
@@ -55,6 +60,7 @@ db-driver config \
 - 必填：`--dbId --type --host --user --password --database`。
 - 缺参数会报错并提示「用 --web 打开网页配置，或传齐以上参数命令行保存」。
 - `--port` 不传则按类型自动填（mysql=3306、postgres=5432）。
+- `--schema` 不传则 PG 默认 `public`；MySQL 不使用此字段。
 - 默认权限：`dmlQuery=true`，其余 `false`（与网页默认值一致）。
 - `--test` 会先尝试连接，失败则中止保存。
 - 若 `dbId` 已存在会**直接覆盖**。
@@ -76,8 +82,12 @@ db-driver remove <dbId> --yes        # 删除连接
 # Schema（默认轻量；只看表名）
 db-driver schema <dbId>
 
+# PG 临时切换 schema（覆盖配置里的默认）
+db-driver schema <dbId> --schema tenant_1
+
 # 单表结构（按需查看，避免上下文爆炸）
 db-driver schema <dbId> --table <name>          # 字段 + 索引（含复合索引列顺序）
+db-driver schema <dbId> --table <name> --schema <s>
 
 # 表名过滤
 db-driver schema <dbId> --search user
@@ -163,6 +173,7 @@ db-driver update --json       # JSON 输出（AI Agent 用）
 ```
 连接不存在        → db-driver list 看 dbId；或 db-driver config 添加
 权限被拒         → db-driver show <dbId> 看权限位；db-driver config 调整
+PG schema 找不到表 → db-driver show <dbId> 确认 schema 字段；可用 --schema 临时切换
 表不存在         → db-driver schema <dbId> --search <keyword> 找相似表
 列不存在         → db-driver schema <dbId> --table <table> 看真实列名
 无法解析 SQL     → 含绕过技巧，已被 SQL 解析器拒绝

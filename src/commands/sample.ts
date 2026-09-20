@@ -2,6 +2,7 @@ import { getConnection, closeConfigDb } from '../store/configStore.js';
 import { acquireDriver } from '../db/pool.js';
 import { checkSqlPermission, SqlPermissionError } from '../db/permissions.js';
 import { translateDbError } from '../utils/errors.js';
+import { quoteQualifiedTable } from '../utils/ident.js';
 
 export interface SampleOptions {
   limit: number;
@@ -16,7 +17,7 @@ export async function runSample(dbId: string, table: string, options: SampleOpti
   }
 
   const whereClause = options.where ? ` WHERE ${options.where}` : '';
-  const sql = `SELECT * FROM ${quoteIdent(table, conn.type)}${whereClause} LIMIT ${options.limit}`;
+  const sql = `SELECT * FROM ${quoteQualifiedTable(table, conn.schema, conn.type)}${whereClause} LIMIT ${options.limit}`;
   checkSqlPermission(sql, conn.permissions, conn.type);
 
   const driver = await acquireDriver(conn);
@@ -71,9 +72,4 @@ export function formatTable(rows: Record<string, unknown>[]): string {
     .map((r) => keys.map((k, i) => pad(String(r[k] ?? 'NULL'), widths[i])).join(' | '))
     .join('\n');
   return `${header}\n${sep}\n${body}`;
-}
-
-function quoteIdent(name: string, dbType: 'mysql' | 'postgres'): string {
-  if (dbType === 'mysql') return '`' + name.replace(/`/g, '``') + '`';
-  return '"' + name.replace(/"/g, '""') + '"';
 }

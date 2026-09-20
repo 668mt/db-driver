@@ -69,6 +69,8 @@ export function upsertConnection(input: {
   user: string;
   password: string;
   database: string;
+  schema?: string;
+  description?: string;
   permissions: DbPermissions;
 }): DbConnectionConfig {
   const file = load();
@@ -82,6 +84,8 @@ export function upsertConnection(input: {
     user: input.user,
     password: input.password,
     database: input.database,
+    schema: input.schema?.trim() || undefined,
+    description: input.description?.trim() || undefined,
     permissions: input.permissions,
     createdAt: idx >= 0 ? file.connections[idx].createdAt : updatedAt,
     updatedAt,

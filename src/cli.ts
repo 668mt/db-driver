@@ -43,7 +43,9 @@ program
   .option('--port <port>', '数据库 port', (v) => parseInt(v, 10))
   .option('--user <user>', '用户名')
   .option('--password <password>', '密码')
-  .option('--database <database>', '数据库名 / schema 名')
+  .option('--database <database>', '数据库名（catalog）')
+  .option('--schema <schema>', 'PostgreSQL schema 名（默认 public）')
+  .option('--description <text>', '连接描述（可选，便于区分多套同形环境）')
   .option('--dml-query', '允许 SELECT', true)
   .option('--no-dml-query', '禁用 SELECT')
   .option('--dml-update', '允许 INSERT/UPDATE', false)
@@ -85,6 +87,8 @@ program
       user: opts.user as string,
       password: opts.password as string,
       database: opts.database as string,
+      schema: (opts.schema as string | undefined) || undefined,
+      description: (opts.description as string | undefined) || undefined,
       permissions: {
         dmlQuery: opts.dmlQuery !== false,
         dmlUpdate: opts.dmlUpdate === true,
@@ -132,13 +136,15 @@ program
   .description('查看数据库的 schema（默认只列表名，--table 看字段）')
   .option('-t, --table <name>', '查看指定表的字段详情')
   .option('-s, --search <pattern>', '按表名模糊过滤')
+  .option('--schema <name>', 'PostgreSQL 临时切换 schema（覆盖配置中的默认 schema）')
   .option('--limit <n>', '最多列出多少张表', (v) => parseInt(v, 10))
   .option('--offset <n>', '表列表起始偏移', (v) => parseInt(v, 10), 0)
   .option('--json', '以 JSON 格式输出', false)
-  .action(async (dbId: string, opts: { table?: string; search?: string; limit?: number; offset: number; json: boolean }) => {
+  .action(async (dbId: string, opts: { table?: string; search?: string; schema?: string; limit?: number; offset: number; json: boolean }) => {
     await runSchema(dbId, {
       table: opts.table,
       search: opts.search,
+      schema: opts.schema,
       limit: opts.limit,
       offset: opts.offset ?? 0,
       json: !!opts.json,

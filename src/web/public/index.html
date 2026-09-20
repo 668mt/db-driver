@@ -230,7 +230,15 @@
             </div>
             <div class="full">
               <label>Database *</label>
-              <input id="database" placeholder="数据库名 / Schema 名" />
+              <input id="database" placeholder="数据库名（catalog）" />
+            </div>
+            <div id="schema-row" style="display:none">
+              <label>Schema（可选）</label>
+              <input id="schema" placeholder="PostgreSQL 用，默认 public" />
+            </div>
+            <div class="full">
+              <label>描述（可选）</label>
+              <textarea id="description" rows="2" placeholder="如：生产 / 预发 / 测试"></textarea>
             </div>
           </div>
 
@@ -325,15 +333,18 @@
         $('user').value = current.user;
         $('password').value = current.password;
         $('database').value = current.database;
+        $('schema').value = current.schema ?? '';
+        $('description').value = current.description ?? '';
         $('dmlQuery').checked = current.permissions.dmlQuery;
         $('dmlUpdate').checked = current.permissions.dmlUpdate;
         $('dmlDelete').checked = current.permissions.dmlDelete;
         $('ddl').checked = current.permissions.ddl;
         $('delete-btn').style.display = '';
+        updateSchemaVisibility();
       }
 
       function resetForm() {
-        current = { dbId: '', type: 'mysql', host: '', port: 3306, user: '', password: '', database: '', permissions: { dmlQuery: true, dmlUpdate: false, dmlDelete: false, ddl: false } };
+        current = { dbId: '', type: 'mysql', host: '', port: 3306, user: '', password: '', database: '', schema: '', description: '', permissions: { dmlQuery: true, dmlUpdate: false, dmlDelete: false, ddl: false } };
         formEl.style.display = '';
         placeholderEl.style.display = 'none';
         $('dbId').value = '';
@@ -344,12 +355,19 @@
         $('user').value = '';
         $('password').value = '';
         $('database').value = '';
+        $('schema').value = '';
+        $('description').value = '';
         $('dmlQuery').checked = true;
         $('dmlUpdate').checked = false;
         $('dmlDelete').checked = false;
         $('ddl').checked = false;
         $('delete-btn').style.display = 'none';
+        updateSchemaVisibility();
         renderList();
+      }
+
+      function updateSchemaVisibility() {
+        $('schema-row').style.display = $('type').value === 'postgres' ? '' : 'none';
       }
 
       function readForm() {
@@ -361,6 +379,8 @@
           user: $('user').value.trim(),
           password: $('password').value,
           database: $('database').value.trim(),
+          schema: $('schema').value.trim(),
+          description: $('description').value.trim(),
           permissions: {
             dmlQuery: $('dmlQuery').checked,
             dmlUpdate: $('dmlUpdate').checked,
@@ -371,6 +391,7 @@
       }
 
       $('new-btn').addEventListener('click', resetForm);
+      $('type').addEventListener('change', updateSchemaVisibility);
       $('cancel-btn').addEventListener('click', () => {
         formEl.style.display = 'none';
         placeholderEl.style.display = '';

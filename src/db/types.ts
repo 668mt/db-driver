@@ -8,6 +8,8 @@ export interface DbConnectionConfig {
   user: string;
   password: string;
   database: string;
+  schema?: string;
+  description?: string;
   permissions: DbPermissions;
   createdAt: string;
   updatedAt: string;

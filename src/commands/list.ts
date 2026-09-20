@@ -11,6 +11,8 @@ export async function runList(options: { json: boolean }): Promise<void> {
           host: c.host,
           port: c.port,
           database: c.database,
+          schema: c.schema ?? null,
+          description: c.description ?? null,
           user: c.user,
           permissions: c.permissions,
           updatedAt: c.updatedAt,
@@ -43,12 +45,18 @@ export async function runList(options: { json: boolean }): Promise<void> {
   for (const c of all) {
     const endpoint = `${c.user}@${c.host}:${c.port}/${c.database}`;
     const perms = formatPerms(c.permissions);
-    console.log(
+    const line1 =
       c.dbId.padEnd(dbIdWidth + 2) +
-        c.type.padEnd(typeWidth + 2) +
-        endpoint.padEnd(40) +
-        perms
-    );
+      c.type.padEnd(typeWidth + 2) +
+      endpoint.padEnd(40) +
+      perms;
+    console.log(line1);
+    if (c.description) {
+      console.log(`${' '.repeat(dbIdWidth + 2)}📝 ${c.description}`);
+    }
+    if (c.schema) {
+      console.log(`${' '.repeat(dbIdWidth + 2)}   (schema=${c.schema})`);
+    }
   }
   console.log('');
   closeConfigDb();

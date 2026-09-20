@@ -62,6 +62,7 @@ export function createMysqlDriver(config: DbConnectionConfig): DbDriver {
     },
 
     async listTables(options?: {
+      schema?: string;
       search?: string;
       limit?: number;
       offset?: number;
@@ -98,7 +99,7 @@ export function createMysqlDriver(config: DbConnectionConfig): DbDriver {
       }
     },
 
-    async getTable(name: string): Promise<SchemaTable | null> {
+    async getTable(name: string, _schema?: string): Promise<SchemaTable | null> {
       const conn = await pool.getConnection();
       try {
         const [tableRows] = await conn.query(
@@ -160,7 +161,7 @@ export function createMysqlDriver(config: DbConnectionConfig): DbDriver {
       }
     },
 
-    async getSchema(database?: string): Promise<SchemaTable[]> {
+    async getSchema(database?: string, _schema?: string): Promise<SchemaTable[]> {
       const targetDb = database ?? config.database;
       const conn = await pool.getConnection();
       try {

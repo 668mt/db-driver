@@ -13,6 +13,8 @@ export async function runShow(dbId: string, options: { json: boolean; revealPass
     port: conn.port,
     user: conn.user,
     database: conn.database,
+    schema: conn.schema ?? null,
+    description: conn.description ?? null,
     password: options.revealPassword ? conn.password : '••••••',
     permissions: conn.permissions,
     createdAt: conn.createdAt,
@@ -31,7 +33,8 @@ export async function runShow(dbId: string, options: { json: boolean; revealPass
   console.log(`  Port:     ${conn.port}`);
   console.log(`  User:     ${conn.user}`);
   console.log(`  Password: ${options.revealPassword ? conn.password : '••••••'}`);
-  console.log(`  Database: ${conn.database}`);
+  console.log(`  Database: ${conn.database}${conn.schema ? ` (schema=${conn.schema})` : ''}`);
+  if (conn.description) console.log(`  描述:     ${conn.description}`);
   console.log(`  权限:`);
   console.log(`    SELECT:           ${conn.permissions.dmlQuery ? '✅' : '❌'}`);
   console.log(`    INSERT/UPDATE:    ${conn.permissions.dmlUpdate ? '✅' : '❌'}`);

@@ -18,6 +18,8 @@ export interface CliConfigInput {
   user: string;
   password: string;
   database: string;
+  schema?: string;
+  description?: string;
   permissions: DbPermissions;
   test?: boolean;
 }
@@ -27,10 +29,10 @@ export async function runConfigWeb(): Promise<void> {
   console.log(`\n🌐  db-driver config server started`);
   console.log(`   URL: ${handle.url}`);
   console.log(`   在浏览器中打开该 URL 进行配置`);
-  console.log(`   关闭浏览器窗口后自动退出\n`);
+  console.log(`   关闭浏览器窗口或按 Ctrl+C 退出\n`);
 
   let closed = false;
-  const exit = (reason: string) => {
+  const gracefulExit = (reason: string) => {
     if (closed) return;
     closed = true;
     console.log(`\n👋  ${reason}, 退出 db-driver config\n`);
@@ -42,12 +44,18 @@ export async function runConfigWeb(): Promise<void> {
 
   handle.onLastClientGone(() => {
     setTimeout(() => {
-      if (handle.port) exit('所有浏览器窗口已关闭');
+      if (handle.port) gracefulExit('所有浏览器窗口已关闭');
     }, 500);
   });
 
-  process.on('SIGINT', () => exit('收到 SIGINT 信号'));
-  process.on('SIGTERM', () => exit('收到 SIGTERM 信号'));
+  const forceExit = (reason: string) => {
+    if (closed) return;
+    closed = true;
+    console.log(`\n👋  ${reason}, 退出 db-driver config\n`);
+    process.exit(0);
+  };
+  process.on('SIGINT', () => forceExit('收到 SIGINT 信号'));
+  process.on('SIGTERM', () => forceExit('收到 SIGTERM 信号'));
 
   try {
     await open(handle.url, { wait: false });
@@ -86,10 +94,14 @@ export async function runConfigCli(input: CliConfigInput): Promise<void> {
     user: input.user,
     password: input.password,
     database: input.database,
+    schema: input.schema,
+    description: input.description,
     permissions: input.permissions,
   });
 
-  console.log(`✅ 已保存连接 "${saved.dbId}" → ${saved.type}://${saved.user}@${saved.host}:${saved.port}/${saved.database}`);
+  const endpoint = `${saved.type}://${saved.user}@${saved.host}:${saved.port}/${saved.database}${saved.schema ? ` (schema=${saved.schema})` : ''}`;
+  console.log(`✅ 已保存连接 "${saved.dbId}" → ${endpoint}`);
+  if (saved.description) console.log(`   描述: ${saved.description}`);
   console.log(`   权限: ${formatPermissions(saved.permissions)}`);
   closeConfigDb();
 }

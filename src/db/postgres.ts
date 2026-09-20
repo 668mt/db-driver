@@ -20,6 +20,10 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
     }
   }
 
+  function activeSchema(override?: string): string {
+    return override ?? config.schema ?? 'public';
+  }
+
   return {
     async testConnection(): Promise<void> {
       await ensureConnected();
@@ -52,13 +56,15 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
     },
 
     async listTables(options?: {
+      schema?: string;
       search?: string;
       limit?: number;
       offset?: number;
     }): Promise<TableInfo[]> {
       await ensureConnected();
+      const targetSchema = activeSchema(options?.schema);
       const where: string[] = ['n.nspname = $1', "c.relkind = 'r'"];
-      const params: unknown[] = [config.database];
+      const params: unknown[] = [targetSchema];
       if (options?.search) {
         where.push('c.relname LIKE $2');
         params.push(`%${options.search}%`);
@@ -83,15 +89,16 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
       }));
     },
 
-    async getTable(name: string): Promise<SchemaTable | null> {
+    async getTable(name: string, schema?: string): Promise<SchemaTable | null> {
       await ensureConnected();
+      const targetSchema = activeSchema(schema);
       const tableResult = await client.query(
         `SELECT c.relname AS tableName,
                 obj_description(c.oid, 'pg_class') AS tableComment
          FROM pg_class c
          JOIN pg_namespace n ON n.oid = c.relnamespace
          WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind = 'r'`,
-        [config.database, name]
+        [targetSchema, name]
       );
       if (tableResult.rows.length === 0) return null;
 
@@ -112,7 +119,7 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
            AND NOT a.attisdropped
            AND c.relkind = 'r'
          ORDER BY a.attnum`,
-        [config.database, name]
+        [targetSchema, name]
       );
 
       const indexResult = await client.query(
@@ -131,7 +138,7 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
          JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
          WHERE n.nspname = $1 AND t.relname = $2
          ORDER BY i.relname, array_position(ix.indkey, a.attnum)`,
-        [config.database, name]
+        [targetSchema, name]
       );
 
       const indexes = indexResult.rows.map<TableIndex>((r) => ({
@@ -152,9 +159,10 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
       };
     },
 
-    async getSchema(database?: string): Promise<SchemaTable[]> {
+    async getSchema(database?: string, schema?: string): Promise<SchemaTable[]> {
       await ensureConnected();
       const targetDb = database ?? config.database;
+      const targetSchema = activeSchema(schema);
 
       const tablesResult = await client.query(
         `SELECT c.relname AS tableName,
@@ -163,7 +171,7 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
          JOIN pg_namespace n ON n.oid = c.relnamespace
          WHERE n.nspname = $1 AND c.relkind = 'r'
          ORDER BY c.relname`,
-        [targetDb]
+        [targetSchema]
       );
 
       if (tablesResult.rows.length === 0) return [];
@@ -185,7 +193,7 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
            AND NOT a.attisdropped
            AND c.relkind = 'r'
          ORDER BY c.relname, a.attnum`,
-        [targetDb]
+        [targetSchema]
       );
 
       const colsByTable = new Map<string, ReturnType<typeof mapColumns>>();

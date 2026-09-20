@@ -5,6 +5,7 @@ import type { DbDriver } from '../db/index.js';
 export interface SchemaOptions {
   table?: string;
   search?: string;
+  schema?: string;
   limit?: number;
   offset: number;
   json: boolean;
@@ -19,7 +20,7 @@ export async function runSchema(dbId: string, options: SchemaOptions): Promise<v
   const driver = await acquireDriver(conn);
   try {
     if (options.table) {
-      await showTableDetail(driver, options.table, options.json);
+      await showTableDetail(driver, options.table, options.schema, options.json);
     } else {
       await showTableList(driver, conn.database, options);
     }
@@ -35,6 +36,7 @@ async function showTableList(
 ): Promise<void> {
   const limit = options.limit ?? 50;
   const tables = await driver.listTables({
+    schema: options.schema,
     search: options.search,
     limit,
     offset: options.offset,
@@ -67,9 +69,10 @@ async function showTableList(
 async function showTableDetail(
   driver: DbDriver,
   tableName: string,
+  schema: string | undefined,
   json: boolean
 ): Promise<void> {
-  const table = await driver.getTable(tableName);
+  const table = await driver.getTable(tableName, schema);
   if (!table) {
     throw new Error(`表不存在: ${tableName}`);
   }

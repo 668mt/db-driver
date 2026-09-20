@@ -139,6 +139,14 @@ db-driver/
 - 命令完成后**不要**手动 `driver.close()`，由 `cli.ts` 的 `shutdown()` 统一清理
 - 改 pool 配置前必读 `shutdown()` 的 2 秒兜底逻辑，避免改坏导致进程无法退出
 
+### 4.2.1 PostgreSQL schema
+
+- PG 一级连接是 **database（catalog）**，二级是 **schema（namespace）**
+- `config.database` → `pg.Client.database`（连接哪个库）
+- `config.schema` → `pg_namespace.nspname`（默认 `'public'`）
+- 旧配置缺 `schema` 字段时，driver 内部默认 `'public'`，向后兼容
+- `schema` 命令 `--schema <name>` 可临时覆盖配置
+
 ### 4.3 权限校验（`permissions.ts`）
 
 - 所有 SQL 执行前**必须**走 `checkSqlPermission(sql, permissions, dbType)`

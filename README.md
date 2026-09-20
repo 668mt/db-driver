@@ -131,6 +131,24 @@ db-driver config \
 必填：`--dbId --type --host --user --password --database`
 可选：`--port`（按类型默认）、权限开关、`--test`、`--web`（直接打开网页）
 
+### PostgreSQL 多 schema 支持
+
+PG 一个 catalog 内有多个 schema（如 `public`、`tenant_1`）。`db-driver` 默认按 `public` 处理：
+
+```bash
+db-driver config --dbId my-app \
+  --type postgres --host ... --database mydb \
+  --schema tenant_1              # 默认 public，可指定
+  --description "生产 - 租户1"   # 可选，便于区分多套环境
+```
+
+`schema` 命令支持临时覆盖：
+
+```bash
+db-driver schema my-app --schema tenant_1
+db-driver schema my-app --schema tenant_1 --table orders
+```
+
 ### 方式 B：网页（适合人）
 
 ```bash
@@ -168,6 +186,8 @@ db-driver config --web
 }
 ```
 
+`schema`（PG 专用，可选）、`description`（连接描述，可选）是 0.2.0 起新增的字段，旧配置文件读取时向后兼容（缺省等同于未设置）。
+
 ## 命令一览
 
 | 命令 | 何时用 |
@@ -181,6 +201,7 @@ db-driver config --web
 | `db-driver schema <dbId>` | 列表名（第一步必走） |
 | `db-driver schema <dbId> --table <t>` | 看字段 + 索引 |
 | `db-driver schema <dbId> --search <p>` | 按表名模糊过滤 |
+| `db-driver schema <dbId> --schema <s>` | PG 临时切换 schema（覆盖配置默认） |
 | `db-driver sample <dbId> <table>` | 样本数据（默认 10 行） |
 | `db-driver count <dbId> <table>` | 行数 |
 | `db-driver execute <dbId> "<SQL>" --json` | 跑查询（带 JSON 输出） |
@@ -218,6 +239,7 @@ db-driver config --web
 | 连接不存在 | `db-driver list` 看可用 dbId |
 | 权限被拒 | `db-driver show <dbId>` 看权限位，重新 `db-driver config` 调整 |
 | 表/列不存在 | `db-driver schema <dbId> --search <keyword>` |
+| PG schema 找不到表 | `db-driver show <dbId>` 确认 schema 字段；可用 `--schema` 临时切换 |
 | 无法解析 SQL | 含注释断字/条件注释，已被拒绝（设计如此） |
 | 进程卡住 | MySQL/PG 连接池问题；`db-driver update` 拉到最新版试试 |
 

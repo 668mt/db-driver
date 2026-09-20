@@ -2,6 +2,7 @@ import { getConnection, closeConfigDb } from '../store/configStore.js';
 import { acquireDriver } from '../db/pool.js';
 import { checkSqlPermission, SqlPermissionError } from '../db/permissions.js';
 import { translateDbError } from '../utils/errors.js';
+import { quoteQualifiedTable } from '../utils/ident.js';
 
 export interface CountOptions {
   where?: string;
@@ -15,7 +16,7 @@ export async function runCount(dbId: string, table: string, options: CountOption
   }
 
   const whereClause = options.where ? ` WHERE ${options.where}` : '';
-  const sql = `SELECT COUNT(*) AS cnt FROM ${quoteIdent(table, conn.type)}${whereClause}`;
+  const sql = `SELECT COUNT(*) AS cnt FROM ${quoteQualifiedTable(table, conn.schema, conn.type)}${whereClause}`;
   checkSqlPermission(sql, conn.permissions, conn.type);
 
   const driver = await acquireDriver(conn);
@@ -47,9 +48,4 @@ export async function runCount(dbId: string, table: string, options: CountOption
   } finally {
     closeConfigDb();
   }
-}
-
-function quoteIdent(name: string, dbType: 'mysql' | 'postgres'): string {
-  if (dbType === 'mysql') return '`' + name.replace(/`/g, '``') + '`';
-  return '"' + name.replace(/"/g, '""') + '"';
 }

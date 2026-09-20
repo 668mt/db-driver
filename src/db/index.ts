@@ -10,9 +10,9 @@ export interface DbDriver {
   testConnection(): Promise<void>;
   close(): Promise<void>;
   query(sql: string): Promise<QueryResult>;
-  listTables(options?: { search?: string; limit?: number; offset?: number }): Promise<TableInfo[]>;
-  getTable(name: string): Promise<SchemaTable | null>;
-  getSchema(database?: string): Promise<SchemaTable[]>;
+  listTables(options?: { schema?: string; search?: string; limit?: number; offset?: number }): Promise<TableInfo[]>;
+  getTable(name: string, schema?: string): Promise<SchemaTable | null>;
+  getSchema(database?: string, schema?: string): Promise<SchemaTable[]>;
 }
 
 export async function createDriver(config: DbConnectionConfig): Promise<DbDriver> {
