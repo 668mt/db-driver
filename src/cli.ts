@@ -281,14 +281,21 @@ usageCmd
 
 usageCmd
   .command('save')
-  .description('追加一条新用法（--dbId / --title 必填；--content 或 --content-file 二选一）')
-  .requiredOption('--dbId <id>', '绑定的数据库连接别名')
-  .requiredOption('--title <t>', '短标题')
+  .description('追加一条新用法（--dbId / --title 必填且非空；--content 或 --content-file 二选一）')
+  .requiredOption('--dbId <id>', '绑定的数据库连接别名（必填）')
+  .requiredOption('--title <t>', '短标题（必填）')
   .option('--content <md>', 'Markdown 内容（可含 ```sql 代码块）')
   .option('--content-file <path>', '从文件读取内容（- 表示 stdin，适合长 SQL/Markdown）')
   .option('--json', '以 JSON 格式输出', false)
   .action(
     async (opts: { dbId: string; title: string; content?: string; contentFile?: string; json: boolean }) => {
+      const missing: string[] = [];
+      if (!opts.dbId || !opts.dbId.trim()) missing.push('--dbId');
+      if (!opts.title || !opts.title.trim()) missing.push('--title');
+      if (!opts.content && !opts.contentFile) missing.push('--content 或 --content-file');
+      if (missing.length > 0) {
+        throw new Error(`缺少必填参数: ${missing.join(', ')}`);
+      }
       let content = opts.content ?? '';
       if (opts.contentFile) {
         if (opts.content) {
@@ -296,6 +303,9 @@ usageCmd
         }
         const path = opts.contentFile === '-' ? 0 : opts.contentFile;
         content = readFileSync(path, 'utf8');
+      }
+      if (!content.trim()) {
+        throw new Error('--content 或 --content-file 读取的内容不能为空');
       }
       await runUsageSave(opts.title, content, opts.dbId, { json: !!opts.json });
     }
