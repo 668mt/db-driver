@@ -557,6 +557,18 @@
         background: transparent;
         font-size: 13px;
       }
+      .search-bar {
+        margin-bottom: 10px;
+      }
+      .search-bar input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--card-border);
+        border-radius: 10px;
+        background: var(--input-bg);
+        color: var(--text);
+        font-size: 13px;
+      }
     </style>
   </head>
   <body>
@@ -593,6 +605,9 @@
               <select id="usage-filter">
                 <option value="">全部库</option>
               </select>
+            </div>
+            <div class="search-bar">
+              <input id="usage-search" type="search" placeholder="搜索内容（不区分大小写）" />
             </div>
             <button class="new-btn" id="usage-new-btn">+ 新增用法</button>
             <div class="list" id="usage-list"></div>
@@ -715,12 +730,10 @@
                   <select id="usage-dbId"></select>
                 </div>
                 <div class="field full">
-                  <label>说明（可选）</label>
-                  <input id="usage-note" placeholder="如：查询活跃用户 / 标记订单已支付" autocomplete="off" />
-                </div>
-                <div class="field full">
-                  <label>SQL <span class="req">*</span></label>
-                  <textarea id="usage-sql" rows="8" placeholder="SELECT * FROM ..." style="font-family:'SF Mono',Consolas,Monaco,monospace;font-size:13px;line-height:1.5"></textarea>
+                  <label>笔记内容 <span class="req">*</span></label>
+                  <textarea id="usage-content" rows="10" placeholder="Markdown 格式的内容。&#10;&#10;例：&#10;查询最近 24h 活跃用户：&#10;&#10;  ```sql
+  SELECT * FROM users WHERE last_active > NOW() - INTERVAL 1 DAY
+  ```&#10;&#10;踩坑：online_id 字段在 PG 大小写敏感，要用引号。" style="font-family:'SF Mono',Consolas,Monaco,monospace;font-size:13px;line-height:1.5"></textarea>
                 </div>
               </div>
 
@@ -808,7 +821,9 @@
 
       async function loadList() {
         const res = await fetch('/api/connections');
-        connections = await res.json();
+        const next = await res.json();
+        if (JSON.stringify(next) === JSON.stringify(connections)) return;
+        connections = next;
         renderList();
         if (typeof renderUsageDbIdOptions === 'function') {
           renderUsageDbIdOptions();
@@ -1004,8 +1019,10 @@
       const usageFormEl = $('usage-form');
       const usagePlaceholderEl = $('usage-placeholder');
       const usageFilterEl = $('usage-filter');
+      const usageSearchEl = $('usage-search');
       const usageDbIdEl = $('usage-dbId');
       let usageFilterDbId = '';
+      let usageSearch = '';
 
       function renderUsageDbIdOptions() {
         const prev = usageDbIdEl.value;
@@ -1028,28 +1045,35 @@
         usageFilterDbId = usageFilterEl.value;
       }
 
-      async function loadUsageList() {
-        const url = usageFilterDbId ? `/api/usage?dbId=${encodeURIComponent(usageFilterDbId)}` : '/api/usage';
+async function loadUsageList() {
+        const params = [];
+        if (usageFilterDbId) params.push(`dbId=${encodeURIComponent(usageFilterDbId)}`);
+        if (usageSearch) params.push(`search=${encodeURIComponent(usageSearch)}`);
+        const url = '/api/usage' + (params.length ? '?' + params.join('&') : '');
         const res = await fetch(url);
-        usages = await res.json();
+        const next = await res.json();
+        if (JSON.stringify(next) === JSON.stringify(usages)) return;
+        usages = next;
         renderUsageList();
       }
 
       function renderUsageList() {
         if (usages.length === 0) {
-          usageListEl.innerHTML = `<div class="empty-list">还没有${usageFilterDbId ? ' dbId=' + escapeHtml(usageFilterDbId) + ' 的' : ''}用法<br>点击上方 + 新增</div>`;
+          const desc = usageSearch ? `匹配 "${usageSearch}"` : (usageFilterDbId ? `dbId=${usageFilterDbId}` : '');
+          usageListEl.innerHTML = `<div class="empty-list">没有${desc ? ' ' + escapeHtml(desc) + ' 的' : ''}用法<br>点击上方 + 新增</div>`;
           return;
         }
         usageListEl.innerHTML = usages.map((u) => {
           const isActive = currentUsage?.index === u.index;
-          const preview = u.sql.length > 80 ? u.sql.slice(0, 80) + '…' : u.sql;
+          const firstLine = u.content.split('\n')[0];
+          const preview = firstLine.length > 80 ? firstLine.slice(0, 80) + '…' : firstLine;
           return `
             <div class="list-item ${isActive ? 'active' : ''}" data-index="${u.index}">
               <div class="list-item-title">[${u.index}] ${escapeHtml(u.dbId)}</div>
-              <div class="list-item-meta">${escapeHtml(u.addedAt)}${u.note ? ' · ' + escapeHtml(u.note) : ''}</div>
-              <div class="list-item-desc">${escapeHtml(preview.split('\n')[0])}</div>
+              <div class="list-item-meta">${escapeHtml(u.addedAt)}</div>
+              <div class="list-item-desc">${escapeHtml(preview)}</div>
             </div>`;
-        }).join('');
+        }).join();
         usageListEl.querySelectorAll('.list-item').forEach((el) => {
           el.addEventListener('click', () => selectUsage(parseInt(el.dataset.index, 10)));
         });
@@ -1059,8 +1083,7 @@
         const entry = usages.find((u) => u.index === index);
         if (!entry) return;
         currentUsage = entry;
-        $('usage-note').value = entry.note ?? '';
-        $('usage-sql').value = entry.sql;
+        $('usage-content').value = entry.content;
         usageDbIdEl.value = entry.dbId;
         usageFormEl.style.display = '';
         usagePlaceholderEl.style.display = 'none';
@@ -1072,8 +1095,7 @@
 
       function resetUsageForm() {
         currentUsage = null;
-        $('usage-note').value = '';
-        $('usage-sql').value = '';
+        $('usage-content').value = '';
         usageDbIdEl.value = '';
         usageFormEl.style.display = '';
         usagePlaceholderEl.style.display = 'none';
@@ -1125,12 +1147,20 @@
         loadUsageList();
       });
 
+      let searchTimer = null;
+      usageSearchEl.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          usageSearch = usageSearchEl.value.trim();
+          loadUsageList();
+        }, 200);
+      });
+
       $('usage-save-btn').addEventListener('click', async () => {
-        const sql = $('usage-sql').value.trim();
-        const note = $('usage-note').value.trim();
+        const content = $('usage-content').value.trim();
         const dbId = usageDbIdEl.value;
         if (!dbId) { showToast('请选择 dbId', 'error'); return; }
-        if (!sql) { showToast('SQL 不能为空', 'error'); return; }
+        if (!content) { showToast('笔记内容不能为空', 'error'); return; }
         const url = currentUsage
           ? `/api/usage/${currentUsage.index}`
           : '/api/usage';
@@ -1143,7 +1173,7 @@
           const res = await fetch(url, {
             method,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sql, note, dbId }),
+            body: JSON.stringify({ content, dbId }),
           });
           if (!res.ok) {
             const err = await res.json();
@@ -1152,8 +1182,7 @@
           }
           showToast('✓ 已保存');
           currentUsage = null;
-          $('usage-note').value = '';
-          $('usage-sql').value = '';
+          $('usage-content').value = '';
           usageDbIdEl.value = '';
           usageFormEl.style.display = 'none';
           usagePlaceholderEl.style.display = '';
@@ -1177,6 +1206,15 @@
 
       loadList();
       loadUsageList();
+
+      // 定时轮询，刷新其他窗口/CLI 的改动
+      setInterval(() => {
+        if (activeTab === 'connections' && !current) {
+          loadList();
+        } else if (activeTab === 'usage' && !currentUsage) {
+          loadUsageList();
+        }
+      }, 2000);
 
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
       const ws = new WebSocket(`${proto}://${location.host}`);

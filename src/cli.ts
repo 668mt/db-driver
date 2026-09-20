@@ -270,22 +270,22 @@ const usageCmd = program
 
 usageCmd
   .command('list')
-  .description('列出用法（--dbId 过滤某个库）')
+  .description('列出用法（按 dbId 排序；--dbId / --search 过滤）')
   .option('--dbId <id>', '只显示该 dbId 的用法')
+  .option('--search <keyword>', '关键词搜索（dbId / addedAt / content 不区分大小写）')
   .option('--json', '以 JSON 格式输出', false)
-  .action(async (opts: { dbId?: string; json: boolean }) => {
-    await runUsageList({ dbId: opts.dbId, json: !!opts.json });
+  .action(async (opts: { dbId?: string; search?: string; json: boolean }) => {
+    await runUsageList({ dbId: opts.dbId, search: opts.search, json: !!opts.json });
   });
 
 usageCmd
   .command('save')
-  .description('追加一条新用法（必填 --dbId）')
+  .description('追加一条新用法（--dbId + --content 都必填）')
   .requiredOption('--dbId <id>', '绑定的数据库连接别名')
-  .requiredOption('--sql <sql>', 'SQL 文本')
-  .option('--note <note>', '可选说明')
+  .requiredOption('--content <md>', 'Markdown 内容，可含 ```sql 代码块')
   .option('--json', '以 JSON 格式输出', false)
-  .action(async (opts: { dbId: string; sql: string; note?: string; json: boolean }) => {
-    await runUsageSave(opts.sql, opts.note, opts.dbId, { json: !!opts.json });
+  .action(async (opts: { dbId: string; content: string; json: boolean }) => {
+    await runUsageSave(opts.content, opts.dbId, { json: !!opts.json });
   });
 
 usageCmd
@@ -366,7 +366,7 @@ SQL 执行:
 用法笔记 (明文 Markdown，按 dbId 绑定):
   $ db-driver usage                                       # 列出所有用法
   $ db-driver usage list --dbId my-app                    # 查某个库的用法
-  $ db-driver usage save --dbId my-app --sql "SELECT ..." --note "..."   # 追加一条
+  $ db-driver usage save --dbId my-app --content "..."   # 追加一条（Markdown 内容，可含 SQL 代码块）
   $ db-driver usage edit                                  # 用 $EDITOR 手动整理
   $ db-driver usage rm 3                                  # 删除第 3 条
   $ db-driver usage clear --dbId my-app --yes             # 清空某个库

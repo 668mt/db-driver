@@ -12,6 +12,7 @@ import { closeConfigDb } from '../store/configStore.js';
 
 export interface UsageListOptions {
   dbId?: string;
+  search?: string;
   json: boolean;
 }
 
@@ -37,9 +38,17 @@ function openInEditor(file: string): Promise<void> {
   });
 }
 
+function preview(s: string, max = 60): string {
+  const first = s.split('\n')[0];
+  return first.length > max ? first.slice(0, max) + '…' : first;
+}
+
 export async function runUsageList(options: UsageListOptions): Promise<void> {
-  const entries = listUsage(options.dbId);
-  const filterDesc = options.dbId ? ` (dbId=${options.dbId})` : '';
+  const entries = listUsage(options.dbId, options.search);
+  const filters: string[] = [];
+  if (options.dbId) filters.push(`dbId=${options.dbId}`);
+  if (options.search) filters.push(`search="${options.search}"`);
+  const filterDesc = filters.length > 0 ? ` (${filters.join(', ')})` : '';
   if (options.json) {
     console.log(
       JSON.stringify(
@@ -55,7 +64,7 @@ export async function runUsageList(options: UsageListOptions): Promise<void> {
     console.log(`(没有${options.dbId ? `dbId=${options.dbId} 的` : ''}用法记录)`);
     console.log('');
     console.log('添加:');
-    console.log(`  db-driver usage save --dbId <id> --sql "SELECT * FROM ..." --note "..."`);
+    console.log(`  db-driver usage save --dbId <id> --content "..."  # Markdown 内容，可含 SQL 代码块`);
     console.log('手动编辑:');
     console.log(`  db-driver usage edit     # 用 $EDITOR 打开 ${usageFilePath()}`);
     closeConfigDb();
@@ -63,17 +72,15 @@ export async function runUsageList(options: UsageListOptions): Promise<void> {
   }
   console.log(`\n📚 ${entries.length} 条用法${filterDesc} (${usageFilePath()})\n`);
   for (const e of entries) {
-    const header = `[${e.index}] ${e.addedAt} · ${e.dbId}${e.note ? ' · ' + e.note : ''}`;
-    console.log(header);
-    const sqlLines = e.sql.split('\n');
-    for (const line of sqlLines) {
+    console.log(`[${e.index}] ${e.addedAt} · ${e.dbId}`);
+    for (const line of e.content.split('\n')) {
       console.log(`    ${line}`);
     }
     console.log('');
   }
   console.log('操作:');
   console.log(`  db-driver usage edit                                       # 手动编辑文件`);
-  console.log(`  db-driver usage save --dbId <id> --sql "..." --note "..."   # 追加一条`);
+  console.log(`  db-driver usage save --dbId <id> --content "..."           # 追加一条（Markdown）`);
   console.log(`  db-driver usage list --dbId <id>                           # 查某个库的用法`);
   console.log(`  db-driver usage rm <index>                                 # 删除指定序号`);
   console.log(`  db-driver usage clear --dbId <id> --yes                    # 清空某库（不加 --dbId 清全部）`);
@@ -81,27 +88,25 @@ export async function runUsageList(options: UsageListOptions): Promise<void> {
 }
 
 export async function runUsageSave(
-  sql: string,
-  note: string | undefined,
+  content: string,
   dbId: string,
   options: UsageSaveOptions
 ): Promise<void> {
-  if (!sql || !sql.trim()) {
-    throw new Error('--sql 不能为空');
+  if (!content || !content.trim()) {
+    throw new Error('--content 不能为空');
   }
   if (!dbId || !dbId.trim()) {
     throw new Error('--dbId 不能为空（用法必须绑定到具体数据库连接）');
   }
-  const entry = addUsage(sql, note, dbId);
+  const entry = addUsage(content, dbId);
   if (options.json) {
     console.log(JSON.stringify({ ok: true, entry }, null, 2));
   } else {
     console.log(`✅ 已保存用法`);
-    console.log(`   dbId:  ${entry.dbId}`);
-    console.log(`   时间:  ${entry.addedAt}`);
-    if (entry.note) console.log(`   说明:  ${entry.note}`);
-    console.log(`   SQL:   ${entry.sql.split('\n')[0]}${entry.sql.includes('\n') ? '...' : ''}`);
-    console.log(`   文件:  ${usageFilePath()}`);
+    console.log(`   dbId:    ${entry.dbId}`);
+    console.log(`   时间:    ${entry.addedAt}`);
+    console.log(`   内容:    ${preview(entry.content)}`);
+    console.log(`   文件:    ${usageFilePath()}`);
   }
   closeConfigDb();
 }
@@ -149,25 +154,24 @@ export async function runUsageRemove(index: number, options: { json: boolean }):
   if (options.json) {
     console.log(JSON.stringify({ ok: true, removed }, null, 2));
   } else {
-    console.log(`✅ 已删除 [${index}] ${removed.addedAt} · ${removed.dbId}${removed.note ? ' · ' + removed.note : ''}`);
+    console.log(`✅ 已删除 [${index}] ${removed.addedAt} · ${removed.dbId}`);
   }
   closeConfigDb();
 }
 
 export async function runUsageUpdate(
   index: number,
-  sql: string,
-  note: string | undefined,
+  content: string,
   dbId: string | undefined,
   options: { json: boolean }
 ): Promise<void> {
   if (!Number.isInteger(index) || index < 1) {
     throw new Error('序号必须是 ≥ 1 的整数');
   }
-  if (!sql || !sql.trim()) {
-    throw new Error('--sql 不能为空');
+  if (!content || !content.trim()) {
+    throw new Error('--content 不能为空');
   }
-  const updated = updateUsage(index, sql, note, dbId);
+  const updated = updateUsage(index, content, dbId);
   if (!updated) {
     throw new Error(`未找到序号 [${index}]`);
   }

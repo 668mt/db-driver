@@ -37,30 +37,14 @@ export async function runConsole(options: ConsoleOptions = {}): Promise<void> {
     console.log(`   (请求的端口 ${requestedPort} 被占用，已自动改为 ${handle.port})`);
   }
   console.log(`   在浏览器中管理连接配置和 SQL 用法笔记`);
-  console.log(`   关闭浏览器窗口或按 Ctrl+C 退出\n`);
+  console.log(`   关闭浏览器窗口不会退出 CLI；要退出请按 Ctrl+C\n`);
 
-  let closed = false;
-  const gracefulExit = (reason: string) => {
-    if (closed) return;
-    closed = true;
+  const forceExit = (reason: string) => {
     console.log(`\n👋  ${reason}, 退出 db-driver console\n`);
     handle.shutdown().finally(() => {
       closeConfigDb();
       process.exit(0);
     });
-  };
-
-  handle.onLastClientGone(() => {
-    setTimeout(() => {
-      if (handle.port) gracefulExit('所有浏览器窗口已关闭');
-    }, 500);
-  });
-
-  const forceExit = (reason: string) => {
-    if (closed) return;
-    closed = true;
-    console.log(`\n👋  ${reason}, 退出 db-driver console\n`);
-    process.exit(0);
   };
   process.on('SIGINT', () => forceExit('收到 SIGINT 信号'));
   process.on('SIGTERM', () => forceExit('收到 SIGTERM 信号'));

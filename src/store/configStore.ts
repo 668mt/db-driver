@@ -121,7 +121,7 @@ function now(): string {
 }
 
 export function listConnections(): DbConnectionConfig[] {
-  return [...load().connections].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return [...load().connections].sort((a, b) => a.dbId.localeCompare(b.dbId));
 }
 
 export function getConnection(dbId: string): DbConnectionConfig | null {

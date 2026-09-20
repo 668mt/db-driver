@@ -238,22 +238,23 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
 
   if (req.method === 'GET' && url.pathname === '/api/usage') {
     const dbId = url.searchParams.get('dbId') ?? undefined;
-    jsonResponse(res, 200, listUsage(dbId));
+    const search = url.searchParams.get('search') ?? undefined;
+    jsonResponse(res, 200, listUsage(dbId, search));
     return;
   }
 
   if (req.method === 'POST' && url.pathname === '/api/usage') {
     try {
-      const body = (await readJson<{ sql?: string; note?: string; dbId?: string }>(req)) ?? {};
-      if (!body.sql || !body.sql.trim()) {
-        jsonResponse(res, 400, { error: '--sql 不能为空' });
+      const body = (await readJson<{ content?: string; dbId?: string }>(req)) ?? {};
+      if (!body.content || !body.content.trim()) {
+        jsonResponse(res, 400, { error: '--content 不能为空' });
         return;
       }
       if (!body.dbId || !body.dbId.trim()) {
         jsonResponse(res, 400, { error: '--dbId 不能为空（用法必须绑定到具体数据库连接）' });
         return;
       }
-      const entry = addUsage(body.sql, body.note, body.dbId);
+      const entry = addUsage(body.content, body.dbId);
       jsonResponse(res, 200, entry);
     } catch (e) {
       jsonResponse(res, 400, { error: (e as Error).message });
@@ -264,12 +265,12 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
   if (req.method === 'PUT' && /^\/api\/usage\/\d+$/.test(url.pathname)) {
     try {
       const index = parseInt(url.pathname.replace('/api/usage/', ''), 10);
-      const body = (await readJson<{ sql?: string; note?: string; dbId?: string }>(req)) ?? {};
-      if (!body.sql || !body.sql.trim()) {
-        jsonResponse(res, 400, { error: '--sql 不能为空' });
+      const body = (await readJson<{ content?: string; dbId?: string }>(req)) ?? {};
+      if (!body.content || !body.content.trim()) {
+        jsonResponse(res, 400, { error: '--content 不能为空' });
         return;
       }
-      const updated = updateUsage(index, body.sql, body.note, body.dbId);
+      const updated = updateUsage(index, body.content, body.dbId);
       if (!updated) {
         jsonResponse(res, 404, { error: `未找到序号 [${index}]` });
         return;
