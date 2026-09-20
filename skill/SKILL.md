@@ -155,6 +155,23 @@ db-driver update --json       # JSON 输出（AI Agent 用）
 - 不允许降级（要降级手动 `npm install -g db-driver@<ver>`）
 - 网络/registry 不可达会报中文错误
 
+## 权限红线（必须严格遵守）
+
+> **⚠️ 这是 db-driver 最核心的安全机制——AI Agent 必须遵守，不可越权。**
+
+db-driver 每个连接在配置阶段绑定 4 个权限位（`dmlQuery` / `dmlUpdate` / `dmlDelete` / `ddl`），**所有 SQL 执行前按权限位拦截**。AI Agent 必须遵守：
+
+1. **禁止自行提升权限** —— 当一条 SQL 因为权限被拒时，**绝对不要**通过重新 `db-driver config` / `db-driver config --web` 自己打开新权限。如果真的需要，让用户去打开。
+2. **禁止绕过检查** —— 不要尝试注释断字（`U/**/PDATE`）、MySQL 条件注释（`/*! UPDATE */`）、存储过程 `CALL`、动态 SQL（`PREPARE`/`EXECUTE`）等绕过技巧——它们都会被 SQL 解析器拒绝。
+3. **提权必须用户明确同意** —— 只有用户**明确**说"开 INSERT 权限"、"开 DDL"等指令时，AI 才能给出新的 `db-driver config` 命令让用户执行。**不要假设、不要替用户决定**。
+4. **失败立即停下并报告** —— 权限不足、SQL 被拒、表不存在、解析失败……所有失败**立即停止当前任务**，把完整错误原样反馈给用户，不要尝试第二条路径蒙混过关。
+5. **不要直接编辑配置文件** —— 连接配置由 `db-driver config` 管理，AI 不要去手动改 JSON 文件；如需新增/修改连接，**提示用户自己执行** `db-driver config` 命令。
+
+**典型对话：**
+
+- ❌ 错误：`db-driver execute ... INSERT ...` → "INSERT 已被禁用" → AI 自动跑 `db-driver config ... --dml-update` 重试
+- ✅ 正确：`db-driver execute ... INSERT ...` → "INSERT 已被禁用" → AI 把错误反馈给用户，**询问**"是否需要打开 INSERT 权限？需要的话你自己跑 `db-driver config ... --dml-update` 或告诉我"
+
 ## 典型工作流（AI Agent）
 
 1. 用户：「帮我看看未支付订单有多少」
@@ -163,7 +180,8 @@ db-driver update --json       # JSON 输出（AI Agent 用）
    - 或者更细致：`db-driver sample <dbId> orders --where "status='UNPAID'" --limit 5`
 2. 用户：「修改 users 表的 email 字段」
    - `db-driver schema <dbId> --table users` 确认当前结构
-   - 检查连接是否开启 `ddl`，否则 `db-driver config ... --ddl`
+   - 告诉用户「修改表结构需要 ddl 权限，当前连接是否开启？」
+   - **用户确认开 DDL 后**，才提示用户跑 `db-driver config ... --ddl`
    - `db-driver execute <dbId> "ALTER TABLE users ..."`
 3. 用户：「列出所有表名」
    - `db-driver schema <dbId>`（轻量输出）
@@ -171,15 +189,10 @@ db-driver update --json       # JSON 输出（AI Agent 用）
 ## 故障排查路径
 
 ```
-连接不存在        → db-driver list 看 dbId；或 db-driver config 添加
-权限被拒         → db-driver show <dbId> 看权限位；db-driver config 调整
-PG schema 找不到表 → db-driver show <dbId> 确认 schema 字段；可用 --schema 临时切换
+连接不存在        → db-driver list 看 dbId；提示用户用 db-driver config 添加
+权限被拒         → 把错误原样反馈给用户；不要自行调整；等用户明确同意再提示新 config 命令
+PG schema 找不到表 → 让用户确认 db-driver show <dbId> 输出的 schema 字段；用户可临时 --schema 切换
 表不存在         → db-driver schema <dbId> --search <keyword> 找相似表
 列不存在         → db-driver schema <dbId> --table <table> 看真实列名
-无法解析 SQL     → 含绕过技巧，已被 SQL 解析器拒绝
+无法解析 SQL     → 含绕过技巧，已被 SQL 解析器拒绝（设计上不可绕过）
 ```
-
-## 配置 / 数据位置
-
-- 连接配置：`~/.db-driver/config.json`（明文 JSON，可手动编辑）
-- Skill 安装位置：`~/.agents/skills/db-driver/`

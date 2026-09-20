@@ -237,11 +237,22 @@ db-driver config --web
 |------|------|
 | 命令不存在 | `npm install -g db-driver` 没跑 / PATH 不对 |
 | 连接不存在 | `db-driver list` 看可用 dbId |
-| 权限被拒 | `db-driver show <dbId>` 看权限位，重新 `db-driver config` 调整 |
+| 权限被拒 | `db-driver show <dbId>` 看权限位；**手动用 `db-driver config` 调整**（不要让 AI 自动调） |
 | 表/列不存在 | `db-driver schema <dbId> --search <keyword>` |
 | PG schema 找不到表 | `db-driver show <dbId>` 确认 schema 字段；可用 `--schema` 临时切换 |
 | 无法解析 SQL | 含注释断字/条件注释，已被拒绝（设计如此） |
 | 进程卡住 | MySQL/PG 连接池问题；`db-driver update` 拉到最新版试试 |
+
+## AI Agent 协作红线
+
+如果由 AI Agent 在调用本工具：
+
+- **禁止自行提升权限** —— 权限被拒时不要自动跑 `db-driver config` 加新权限
+- **提权必须用户明确同意** —— 只有用户亲口说"开 XX 权限"才能给新的 config 命令
+- **失败立即停下并报告** —— 不要尝试第二条路径蒙混
+- **不要直接编辑配置文件** —— 让用户自己用 `db-driver config`
+
+完整版见 `skill/SKILL.md`（AI Agent 实际加载的入口）。
 
 ## 开发
 
