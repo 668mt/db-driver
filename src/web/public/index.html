@@ -284,6 +284,10 @@
         font-family: inherit;
         transition: all 0.18s ease;
       }
+      #password {
+        -webkit-text-security: disc;
+        text-security: disc;
+      }
       input::placeholder, textarea::placeholder { color: var(--muted); opacity: 0.7; }
       input:focus, select:focus, textarea:focus {
         outline: none;
@@ -654,7 +658,7 @@
                 </div>
                 <div class="field">
                   <label>Password <span class="req">*</span></label>
-                  <input id="password" type="password" placeholder="••••••" autocomplete="new-password" />
+                  <input id="password" type="text" placeholder="••••••" autocomplete="off" data-form-type="other" data-lpignore="true" data-1pignore="true" data-bwignore="true" spellcheck="false" />
                 </div>
                 <div class="field full">
                   <label>Database <span class="req">*</span></label>
