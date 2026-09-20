@@ -1,5 +1,3 @@
-import open from 'open';
-import { startConfigServer } from '../web/server.js';
 import { closeConfigDb, getConnection, upsertConnection } from '../store/configStore.js';
 import { createDriver } from '../db/index.js';
 import { translateDbError } from '../utils/errors.js';
@@ -22,48 +20,6 @@ export interface CliConfigInput {
   description?: string;
   permissions: DbPermissions;
   test?: boolean;
-}
-
-export async function runConfigWeb(): Promise<void> {
-  const handle = await startConfigServer();
-  console.log(`\n🌐  db-driver config server started`);
-  console.log(`   URL: ${handle.url}`);
-  console.log(`   在浏览器中打开该 URL 进行配置`);
-  console.log(`   关闭浏览器窗口或按 Ctrl+C 退出\n`);
-
-  let closed = false;
-  const gracefulExit = (reason: string) => {
-    if (closed) return;
-    closed = true;
-    console.log(`\n👋  ${reason}, 退出 db-driver config\n`);
-    handle.shutdown().finally(() => {
-      closeConfigDb();
-      process.exit(0);
-    });
-  };
-
-  handle.onLastClientGone(() => {
-    setTimeout(() => {
-      if (handle.port) gracefulExit('所有浏览器窗口已关闭');
-    }, 500);
-  });
-
-  const forceExit = (reason: string) => {
-    if (closed) return;
-    closed = true;
-    console.log(`\n👋  ${reason}, 退出 db-driver config\n`);
-    process.exit(0);
-  };
-  process.on('SIGINT', () => forceExit('收到 SIGINT 信号'));
-  process.on('SIGTERM', () => forceExit('收到 SIGTERM 信号'));
-
-  try {
-    await open(handle.url, { wait: false });
-  } catch {
-    console.log('   (自动打开浏览器失败，请手动复制上面的 URL)');
-  }
-
-  await new Promise(() => {});
 }
 
 export async function runConfigCli(input: CliConfigInput): Promise<void> {

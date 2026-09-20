@@ -21,14 +21,17 @@ npm install -g db-driver
 
 两种方式，二选一。
 
-**方式 A — 网页（交互式）**
+**方式 A — 网页（交互式，推荐）**
 
 ```bash
-db-driver config --web
+db-driver console
 ```
 
-- 会在浏览器中打开一个本地配置页面（127.0.0.1 上随机端口）。
-- 配置项：`dbId`、类型（MySQL/PostgreSQL）、host、port、user、password、database。
+- 会在浏览器中打开一个**控制台**（127.0.0.1 上随机端口）。
+- 两个 tab：
+  - **连接配置** — 增删改连接、测连接、保存
+  - **用法笔记** — 增删改 SQL 用法笔记（明文 Markdown）
+- **连接配置项**：`dbId`、类型（MySQL/PostgreSQL）、host、port、user、password、database。
 - **PostgreSQL 额外字段**：
   - `schema`（可选，默认 `public`）—— PG 一个 catalog 内有多个 schema，列举/采样默认只在配置的这个 schema 内。
 - **可选**：`description` —— 连接描述，便于区分多套同形环境（生产/预发/测试）。
@@ -37,7 +40,7 @@ db-driver config --web
   - `dmlUpdate`：INSERT / UPDATE
   - `dmlDelete`：DELETE
   - `ddl`：CREATE / ALTER / DROP / TRUNCATE 等
-- 关闭浏览器窗口后 CLI 自动退出；连接信息以加密二进制存储（AES-256-GCM），master key 由 OS keyring 托管，不暴露具体路径。
+- 关闭浏览器窗口或按 Ctrl+C 退出；连接信息以加密二进制存储（AES-256-GCM），master key 由 OS keyring 托管，不暴露具体路径。
 
 **方式 B — 命令行（适合脚本 / 自动化）**
 

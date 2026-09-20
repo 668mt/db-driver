@@ -198,7 +198,7 @@ db-driver config --web
 
 | 命令 | 何时用 |
 |------|--------|
-| `db-driver config --web` | 可视化配置连接（适合人） |
+| `db-driver console` | 打开网页控制台（同时管理连接配置 + SQL 用法笔记） |
 | `db-driver config --dbId x --type ...` | 命令行快速保存连接（适合脚本） |
 | `db-driver list` | 列出所有 dbId |
 | `db-driver show <dbId>` | 看连接详情（密码默认隐藏） |
@@ -313,7 +313,7 @@ db-driver/
 │   │   └── permissions.ts     # AST 解析 + 权限校验
 │   ├── store/configStore.ts   # JSON 配置读写
 │   ├── utils/errors.ts        # 错误码中文翻译
-│   └── web/                   # config --web 的本地网页
+│   └── web/                   # db-driver console 的本地网页控制台
 ├── skill/SKILL.md             # AI Agent 看到的入口
 └── AGENTS.md                  # 架构与规范
 ```

@@ -59,8 +59,8 @@ db-driver/
 │   │   ├── ident.ts          # quoteIdent / quoteQualifiedTable
 │   │   └── errors.ts         # MySQL errno / PG sqlState → 中文友好提示
 │   └── web/
-│       ├── server.ts         # config 子命令的本地 HTTP 服务
-│       └── public/index.html # 配置页 UI（无外部依赖，纯 HTML+JS）
+│       ├── server.ts         # console 子命令的本地 HTTP 服务（连接 + 用法 API）
+│       └── public/index.html # 控制台 UI（连接 / 用法 tab，无外部依赖，纯 HTML+JS）
 ├── skill/
 │   └── SKILL.md              # 安装到 ~/.agents/skills/db-driver/ 的入口
 ├── package.json

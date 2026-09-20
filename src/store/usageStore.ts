@@ -85,6 +85,21 @@ export function removeUsage(index: number): UsageEntry | null {
   return target;
 }
 
+export function updateUsage(index: number, sql: string, note: string | undefined): UsageEntry | null {
+  const all = listUsage();
+  const idx = all.findIndex((e) => e.index === index);
+  if (idx < 0) return null;
+  all[idx] = { ...all[idx], sql: sql.trim(), note: note?.trim() || undefined };
+  ensureFile();
+  let raw = HEADER;
+  for (const e of all) {
+    raw += `## ${e.addedAt}${e.note ? ' · ' + e.note : ''}\n`;
+    raw += '```sql\n' + e.sql + '\n```\n\n';
+  }
+  writeFileSync(USAGE_FILE, raw, 'utf8');
+  return all[idx];
+}
+
 export function usageFilePath(): string {
   return USAGE_FILE;
 }

@@ -9,6 +9,12 @@ import {
   listConnections,
   upsertConnection,
 } from '../store/configStore.js';
+import {
+  addUsage,
+  listUsage,
+  removeUsage,
+  updateUsage,
+} from '../store/usageStore.js';
 import type { DbConnectionConfig, DbPermissions, DbType } from '../db/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -205,6 +211,57 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
     } else {
       jsonResponse(res, 200, sanitize(conn));
     }
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/usage') {
+    jsonResponse(res, 200, listUsage());
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/usage') {
+    try {
+      const body = (await readJson<{ sql?: string; note?: string }>(req)) ?? {};
+      if (!body.sql || !body.sql.trim()) {
+        jsonResponse(res, 400, { error: '--sql 不能为空' });
+        return;
+      }
+      const entry = addUsage(body.sql, body.note);
+      jsonResponse(res, 200, entry);
+    } catch (e) {
+      jsonResponse(res, 400, { error: (e as Error).message });
+    }
+    return;
+  }
+
+  if (req.method === 'PUT' && /^\/api\/usage\/\d+$/.test(url.pathname)) {
+    try {
+      const index = parseInt(url.pathname.replace('/api/usage/', ''), 10);
+      const body = (await readJson<{ sql?: string; note?: string }>(req)) ?? {};
+      if (!body.sql || !body.sql.trim()) {
+        jsonResponse(res, 400, { error: '--sql 不能为空' });
+        return;
+      }
+      const updated = updateUsage(index, body.sql, body.note);
+      if (!updated) {
+        jsonResponse(res, 404, { error: `未找到序号 [${index}]` });
+        return;
+      }
+      jsonResponse(res, 200, updated);
+    } catch (e) {
+      jsonResponse(res, 400, { error: (e as Error).message });
+    }
+    return;
+  }
+
+  if (req.method === 'DELETE' && /^\/api\/usage\/\d+$/.test(url.pathname)) {
+    const index = parseInt(url.pathname.replace('/api/usage/', ''), 10);
+    const removed = removeUsage(index);
+    if (!removed) {
+      jsonResponse(res, 404, { error: `未找到序号 [${index}]` });
+      return;
+    }
+    jsonResponse(res, 200, { ok: true, removed });
     return;
   }
 

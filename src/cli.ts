@@ -5,7 +5,8 @@ import { fileURLToPath } from 'url';
 
 import { Command } from 'commander';
 
-import { defaultPortFor, runConfigCli, runConfigWeb } from './commands/config.js';
+import { defaultPortFor, runConfigCli } from './commands/config.js';
+import { runConsole } from './commands/console.js';
 import { runInstall } from './commands/install.js';
 import { runSchema } from './commands/schema.js';
 import { runExecute } from './commands/execute.js';
@@ -43,9 +44,15 @@ program
   .version(pkg.version);
 
 program
+  .command('console')
+  .description('打开本地网页控制台（同时管理连接配置 + SQL 用法笔记）')
+  .action(async () => {
+    await runConsole();
+  });
+
+program
   .command('config')
-  .description('配置数据库连接（加 --web 打开网页，否则命令行保存）')
-  .option('--web', '打开本地网页进行配置', false)
+  .description('命令行保存一个数据库连接（用 db-driver console 打开网页管理）')
   .option('--dbId <id>', '连接别名')
   .option('--type <type>', '数据库类型 (mysql|postgres)')
   .option('--host <host>', '数据库 host')
@@ -62,11 +69,6 @@ program
   .option('--ddl', '允许 DDL (CREATE/ALTER/DROP)', false)
   .option('--test', '保存前先测试连接', false)
   .action(async (opts: Record<string, unknown>) => {
-    if (opts.web) {
-      await runConfigWeb();
-      return;
-    }
-
     const missing: string[] = [];
     if (!opts.dbId) missing.push('--dbId');
     if (!opts.type) missing.push('--type');
@@ -77,7 +79,7 @@ program
     if (missing.length > 0) {
       throw new Error(
         `缺少必填参数: ${missing.join(', ')}\n` +
-          `提示：用 --web 打开网页配置，或传齐以上参数命令行保存`
+          `提示：用 db-driver console 打开网页配置，或传齐以上参数命令行保存`
       );
     }
 
@@ -340,10 +342,10 @@ SQL 执行:
   $ db-driver execute <dbId> "SELECT ..." --json
 
 配置:
-  $ db-driver config --web                      # 打开网页
+  $ db-driver console                           # 打开网页控制台（连接 + 用法 统一管理）
   $ db-driver config --dbId my-app --type mysql \\
                    --host 127.0.0.1 --user root --password secret \\
-                   --database app              # 命令行直接保存
+                   --database app              # 命令行直接保存一个连接
   $ db-driver install                           # 安装 skill
   $ db-driver update                            # 升级到最新版
   $ db-driver update --check                    # 仅检查不升级

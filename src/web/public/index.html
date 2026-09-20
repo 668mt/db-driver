@@ -507,6 +507,38 @@
         animation: fade-up 0.3s ease forwards;
       }
       @keyframes fade-up { to { opacity: 1; transform: translateY(0); } }
+
+      .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 16px;
+        padding: 4px;
+        background: var(--card);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        width: fit-content;
+        box-shadow: var(--card-shadow);
+      }
+      .tab {
+        padding: 8px 16px;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.18s ease;
+        font-family: inherit;
+      }
+      .tab:hover { color: var(--text); }
+      .tab.active {
+        background: var(--primary-grad);
+        color: white;
+        box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.4);
+      }
     </style>
   </head>
   <body>
@@ -515,8 +547,8 @@
         <div class="brand">
           <div class="brand-mark">🗄</div>
           <div class="brand-text">
-            <h1>db-driver</h1>
-            <p>数据库连接管理 · 本地加密存储</p>
+            <h1>db-driver 控制台</h1>
+            <p>连接配置 + SQL 用法笔记 · 本地加密存储</p>
           </div>
         </div>
         <div class="header-meta">
@@ -524,105 +556,150 @@
         </div>
       </header>
 
+      <div class="tabs">
+        <button class="tab active" data-tab="connections">📚 连接配置</button>
+        <button class="tab" data-tab="usage">💡 用法笔记</button>
+      </div>
+
       <div class="layout">
         <aside class="card sidebar" data-anim style="animation-delay:0ms">
-          <h2>连接列表</h2>
-          <button class="new-btn" id="new-btn">+ 新建连接</button>
-          <div class="list" id="list"></div>
+          <div data-pane="connections">
+            <h2>连接列表</h2>
+            <button class="new-btn" id="new-btn">+ 新建连接</button>
+            <div class="list" id="list"></div>
+          </div>
+          <div data-pane="usage" style="display:none">
+            <h2>用法列表</h2>
+            <button class="new-btn" id="usage-new-btn">+ 新增用法</button>
+            <div class="list" id="usage-list"></div>
+          </div>
         </aside>
 
-        <main class="card" id="editor" data-anim style="animation-delay:60ms">
-          <div class="empty" id="placeholder">
-            <div class="empty-icon">⬅</div>
-            <div class="empty-title">从左侧选择或新建连接</div>
-            <div class="empty-hint">所有配置以加密二进制存于 OS keyring</div>
+        <main class="card" data-anim style="animation-delay:60ms">
+          <div data-pane="connections">
+            <div class="empty" id="placeholder">
+              <div class="empty-icon">⬅</div>
+              <div class="empty-title">从左侧选择或新建连接</div>
+              <div class="empty-hint">所有配置以加密二进制存于 OS keyring</div>
+            </div>
+
+            <div id="form" style="display:none">
+              <div class="form-header">
+                <h2 id="form-title">连接配置</h2>
+                <span class="form-mode" id="form-mode">新建</span>
+              </div>
+
+              <div class="form-grid">
+                <div class="field">
+                  <label>dbId <span class="req">*</span></label>
+                  <input id="dbId" placeholder="例如 my-app-db" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label>类型 <span class="req">*</span></label>
+                  <select id="type">
+                    <option value="mysql">MySQL</option>
+                    <option value="postgres">PostgreSQL</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Host <span class="req">*</span></label>
+                  <input id="host" placeholder="127.0.0.1" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label>Port <span class="req">*</span></label>
+                  <input id="port" type="number" placeholder="3306 / 5432" />
+                </div>
+                <div class="field">
+                  <label>User <span class="req">*</span></label>
+                  <input id="user" placeholder="root" autocomplete="off" />
+                </div>
+                <div class="field">
+                  <label>Password <span class="req">*</span></label>
+                  <input id="password" type="password" placeholder="••••••" autocomplete="new-password" />
+                </div>
+                <div class="field full">
+                  <label>Database <span class="req">*</span></label>
+                  <input id="database" placeholder="数据库名（catalog）" autocomplete="off" />
+                </div>
+                <div class="field full" id="schema-row" style="display:none">
+                  <label>Schema <span style="color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0">（可选，仅 PostgreSQL）</span></label>
+                  <input id="schema" placeholder="PostgreSQL 用，默认 public" autocomplete="off" />
+                </div>
+                <div class="field full">
+                  <label>描述 <span style="color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0">（可选，便于区分多套同形环境）</span></label>
+                  <textarea id="description" rows="2" placeholder="如：生产 / 预发 / 测试"></textarea>
+                </div>
+              </div>
+
+              <div class="section-title">权限</div>
+              <div class="permissions">
+                <label class="checkbox">
+                  <input type="checkbox" id="dmlQuery" checked />
+                  <div class="checkbox-label">
+                    SELECT
+                    <span class="checkbox-desc">只读查询</span>
+                  </div>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" id="dmlUpdate" />
+                  <div class="checkbox-label">
+                    INSERT / UPDATE
+                    <span class="checkbox-desc">新增和修改</span>
+                  </div>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" id="dmlDelete" />
+                  <div class="checkbox-label">
+                    DELETE
+                    <span class="checkbox-desc">删除数据</span>
+                  </div>
+                </label>
+                <label class="checkbox">
+                  <input type="checkbox" id="ddl" />
+                  <div class="checkbox-label">
+                    DDL
+                    <span class="checkbox-desc">建表、改表、删表</span>
+                  </div>
+                </label>
+              </div>
+
+              <div class="actions">
+                <button class="primary" id="save-btn">保存</button>
+                <button id="test-btn">测试连接</button>
+                <button class="danger" id="delete-btn" style="display:none">删除</button>
+                <button class="ghost" id="cancel-btn">取消</button>
+              </div>
+            </div>
           </div>
 
-          <div id="form" style="display:none">
-            <div class="form-header">
-              <h2 id="form-title">连接配置</h2>
-              <span class="form-mode" id="form-mode">新建</span>
+          <div data-pane="usage" style="display:none">
+            <div class="empty" id="usage-placeholder">
+              <div class="empty-icon">⬅</div>
+              <div class="empty-title">从左侧选择或新增用法</div>
+              <div class="empty-hint">SQL 用法以明文 Markdown 存储，便于人工查看和编辑</div>
             </div>
 
-            <div class="form-grid">
-              <div class="field">
-                <label>dbId <span class="req">*</span></label>
-                <input id="dbId" placeholder="例如 my-app-db" autocomplete="off" />
+            <div id="usage-form" style="display:none">
+              <div class="form-header">
+                <h2 id="usage-form-title">新增用法</h2>
+                <span class="form-mode" id="usage-form-mode">新增</span>
               </div>
-              <div class="field">
-                <label>类型 <span class="req">*</span></label>
-                <select id="type">
-                  <option value="mysql">MySQL</option>
-                  <option value="postgres">PostgreSQL</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>Host <span class="req">*</span></label>
-                <input id="host" placeholder="127.0.0.1" autocomplete="off" />
-              </div>
-              <div class="field">
-                <label>Port <span class="req">*</span></label>
-                <input id="port" type="number" placeholder="3306 / 5432" />
-              </div>
-              <div class="field">
-                <label>User <span class="req">*</span></label>
-                <input id="user" placeholder="root" autocomplete="off" />
-              </div>
-              <div class="field">
-                <label>Password <span class="req">*</span></label>
-                <input id="password" type="password" placeholder="••••••" autocomplete="new-password" />
-              </div>
-              <div class="field full">
-                <label>Database <span class="req">*</span></label>
-                <input id="database" placeholder="数据库名（catalog）" autocomplete="off" />
-              </div>
-              <div class="field full" id="schema-row" style="display:none">
-                <label>Schema <span style="color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0">（可选，仅 PostgreSQL）</span></label>
-                <input id="schema" placeholder="PostgreSQL 用，默认 public" autocomplete="off" />
-              </div>
-              <div class="field full">
-                <label>描述 <span style="color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0">（可选，便于区分多套同形环境）</span></label>
-                <textarea id="description" rows="2" placeholder="如：生产 / 预发 / 测试"></textarea>
-              </div>
-            </div>
 
-            <div class="section-title">权限</div>
-            <div class="permissions">
-              <label class="checkbox">
-                <input type="checkbox" id="dmlQuery" checked />
-                <div class="checkbox-label">
-                  SELECT
-                  <span class="checkbox-desc">只读查询</span>
+              <div class="form-grid">
+                <div class="field full">
+                  <label>说明（可选）</label>
+                  <input id="usage-note" placeholder="如：查询活跃用户 / 标记订单已支付" autocomplete="off" />
                 </div>
-              </label>
-              <label class="checkbox">
-                <input type="checkbox" id="dmlUpdate" />
-                <div class="checkbox-label">
-                  INSERT / UPDATE
-                  <span class="checkbox-desc">新增和修改</span>
+                <div class="field full">
+                  <label>SQL <span class="req">*</span></label>
+                  <textarea id="usage-sql" rows="8" placeholder="SELECT * FROM ..." style="font-family:'SF Mono',Consolas,Monaco,monospace;font-size:13px;line-height:1.5"></textarea>
                 </div>
-              </label>
-              <label class="checkbox">
-                <input type="checkbox" id="dmlDelete" />
-                <div class="checkbox-label">
-                  DELETE
-                  <span class="checkbox-desc">删除数据</span>
-                </div>
-              </label>
-              <label class="checkbox">
-                <input type="checkbox" id="ddl" />
-                <div class="checkbox-label">
-                  DDL
-                  <span class="checkbox-desc">建表、改表、删表</span>
-                </div>
-              </label>
-            </div>
+              </div>
 
-            <div class="actions">
-              <button class="primary" id="save-btn">保存</button>
-              <button id="test-btn">测试连接</button>
-              <button class="danger" id="delete-btn" style="display:none">删除</button>
-              <button class="ghost" id="cancel-btn">取消</button>
+              <div class="actions">
+                <button class="primary" id="usage-save-btn">保存</button>
+                <button class="ghost" id="usage-cancel-btn">取消</button>
+              </div>
             </div>
           </div>
         </main>
@@ -644,11 +721,11 @@
 
     <script>
       const $ = (id) => document.getElementById(id);
-      const listEl = $('list');
-      const formEl = $('form');
-      const placeholderEl = $('placeholder');
+      let activeTab = 'connections';
       let connections = [];
       let current = null;
+      let usages = [];
+      let currentUsage = null;
       let pendingDelete = null;
 
       try {
@@ -664,16 +741,44 @@
         showToast._t = setTimeout(() => { t.className = 'toast'; }, 2400);
       }
 
-      function showModal(title, text, onConfirm) {
+      function showModal(title, text, onConfirm, confirmText = '删除', danger = true) {
         $('modal-title').textContent = title;
         $('modal-text').textContent = text;
         pendingDelete = onConfirm;
+        const btn = $('modal-confirm');
+        btn.textContent = confirmText;
+        btn.className = danger ? 'danger' : 'primary';
         $('modal-backdrop').classList.add('show');
       }
       function hideModal() {
         $('modal-backdrop').classList.remove('show');
         pendingDelete = null;
       }
+
+      function escapeHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      }
+
+      function switchTab(name) {
+        activeTab = name;
+        document.querySelectorAll('.tab').forEach((el) => {
+          el.classList.toggle('active', el.dataset.tab === name);
+        });
+        document.querySelectorAll('[data-pane]').forEach((el) => {
+          el.style.display = el.dataset.pane === name ? '' : 'none';
+        });
+        if (name === 'connections' && !current && !$('form').style.display !== 'none') {
+          $('placeholder').style.display = '';
+        }
+      }
+      document.querySelectorAll('.tab').forEach((el) => {
+        el.addEventListener('click', () => switchTab(el.dataset.tab));
+      });
+
+      // ===== 连接 tab =====
+      const listEl = $('list');
+      const formEl = $('form');
+      const placeholderEl = $('placeholder');
 
       async function loadList() {
         const res = await fetch('/api/connections');
@@ -686,26 +791,20 @@
           listEl.innerHTML = '<div class="empty-list">还没有连接<br>点击上方 + 新建连接</div>';
           return;
         }
-        listEl.innerHTML = connections
-          .map((c) => {
-            const badge = c.type === 'mysql'
-              ? '<span class="badge badge-mysql">MySQL</span>'
-              : '<span class="badge badge-postgres">PG</span>';
-            return `
-            <div class="list-item ${current?.dbId === c.dbId ? 'active' : ''}" data-id="${c.dbId}">
+        listEl.innerHTML = connections.map((c) => {
+          const badge = c.type === 'mysql'
+            ? '<span class="badge badge-mysql">MySQL</span>'
+            : '<span class="badge badge-postgres">PG</span>';
+          return `
+            <div class="list-item ${current?.dbId === c.dbId ? 'active' : ''}" data-id="${escapeHtml(c.dbId)}">
               <div class="list-item-title">${badge} ${escapeHtml(c.dbId)}</div>
               <div class="list-item-meta">${escapeHtml(c.user)}@${escapeHtml(c.host)}:${c.port}/${escapeHtml(c.database)}</div>
               ${c.description ? `<div class="list-item-desc">${escapeHtml(c.description)}</div>` : ''}
             </div>`;
-          })
-          .join('');
+        }).join('');
         listEl.querySelectorAll('.list-item').forEach((el) => {
           el.addEventListener('click', () => selectConn(el.dataset.id));
         });
-      }
-
-      function escapeHtml(s) {
-        return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       }
 
       async function selectConn(dbId) {
@@ -870,6 +969,106 @@
         });
       });
 
+      // ===== 用法 tab =====
+      const usageListEl = $('usage-list');
+      const usageFormEl = $('usage-form');
+      const usagePlaceholderEl = $('usage-placeholder');
+
+      async function loadUsageList() {
+        const res = await fetch('/api/usage');
+        usages = await res.json();
+        renderUsageList();
+      }
+
+      function renderUsageList() {
+        if (usages.length === 0) {
+          usageListEl.innerHTML = '<div class="empty-list">还没有用法<br>点击上方 + 新增</div>';
+          return;
+        }
+        usageListEl.innerHTML = usages.map((u) => {
+          const isActive = currentUsage?.index === u.index;
+          const preview = u.sql.length > 80 ? u.sql.slice(0, 80) + '…' : u.sql;
+          return `
+            <div class="list-item ${isActive ? 'active' : ''}" data-index="${u.index}">
+              <div class="list-item-title">[${u.index}] ${escapeHtml(u.addedAt)}</div>
+              ${u.note ? `<div class="list-item-desc">${escapeHtml(u.note)}</div>` : ''}
+              <div class="list-item-meta">${escapeHtml(preview.split('\n')[0])}</div>
+            </div>`;
+        }).join('');
+        usageListEl.querySelectorAll('.list-item').forEach((el) => {
+          el.addEventListener('click', () => selectUsage(parseInt(el.dataset.index, 10)));
+        });
+      }
+
+      async function selectUsage(index) {
+        const entry = usages.find((u) => u.index === index);
+        if (!entry) return;
+        currentUsage = entry;
+        $('usage-note').value = entry.note ?? '';
+        $('usage-sql').value = entry.sql;
+        usageFormEl.style.display = '';
+        usagePlaceholderEl.style.display = 'none';
+        $('usage-form-title').textContent = '编辑用法 [' + index + ']';
+        $('usage-form-mode').textContent = '编辑中';
+        renderUsageList();
+      }
+
+      function resetUsageForm() {
+        currentUsage = null;
+        $('usage-note').value = '';
+        $('usage-sql').value = '';
+        usageFormEl.style.display = '';
+        usagePlaceholderEl.style.display = 'none';
+        $('usage-form-title').textContent = '新增用法';
+        $('usage-form-mode').textContent = '新增';
+        renderUsageList();
+      }
+
+      $('usage-new-btn').addEventListener('click', resetUsageForm);
+      $('usage-cancel-btn').addEventListener('click', () => {
+        usageFormEl.style.display = 'none';
+        usagePlaceholderEl.style.display = '';
+        currentUsage = null;
+        renderUsageList();
+      });
+
+      $('usage-save-btn').addEventListener('click', async () => {
+        const sql = $('usage-sql').value.trim();
+        const note = $('usage-note').value.trim();
+        if (!sql) { showToast('SQL 不能为空', 'error'); return; }
+        const url = currentUsage
+          ? `/api/usage/${currentUsage.index}`
+          : '/api/usage';
+        const method = currentUsage ? 'PUT' : 'POST';
+        const btn = $('usage-save-btn');
+        btn.disabled = true;
+        const orig = btn.textContent;
+        btn.innerHTML = '<span class="spinner"></span>保存中...';
+        try {
+          const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sql, note }),
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            showToast('保存失败: ' + (err.error || res.status), 'error');
+            return;
+          }
+          showToast('✓ 已保存');
+          currentUsage = null;
+          $('usage-note').value = '';
+          $('usage-sql').value = '';
+          usageFormEl.style.display = 'none';
+          usagePlaceholderEl.style.display = '';
+          await loadUsageList();
+        } finally {
+          btn.disabled = false;
+          btn.textContent = orig;
+        }
+      });
+
+      // ===== modal =====
       $('modal-cancel').addEventListener('click', hideModal);
       $('modal-backdrop').addEventListener('click', (e) => {
         if (e.target === $('modal-backdrop')) hideModal();
@@ -881,6 +1080,7 @@
       });
 
       loadList();
+      loadUsageList();
 
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
       const ws = new WebSocket(`${proto}://${location.host}`);
