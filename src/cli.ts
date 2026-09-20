@@ -49,8 +49,9 @@ program
   .option('--port <n>', `指定端口（默认 ${DEFAULT_CONSOLE_PORT}，被占用时自动改用其他端口）`, (v) =>
     parseInt(v, 10)
   )
-  .action(async (opts: { port?: number }) => {
-    await runConsole({ port: opts.port });
+  .option('--open', '自动在系统默认浏览器打开 URL', false)
+  .action(async (opts: { port?: number; open?: boolean }) => {
+    await runConsole({ port: opts.port, open: !!opts.open });
   });
 
 program
@@ -280,12 +281,13 @@ usageCmd
 
 usageCmd
   .command('save')
-  .description('追加一条新用法（--dbId + --content 都必填）')
+  .description('追加一条新用法（--dbId / --title / --content 都必填）')
   .requiredOption('--dbId <id>', '绑定的数据库连接别名')
+  .requiredOption('--title <t>', '短标题')
   .requiredOption('--content <md>', 'Markdown 内容，可含 ```sql 代码块')
   .option('--json', '以 JSON 格式输出', false)
-  .action(async (opts: { dbId: string; content: string; json: boolean }) => {
-    await runUsageSave(opts.content, opts.dbId, { json: !!opts.json });
+  .action(async (opts: { dbId: string; title: string; content: string; json: boolean }) => {
+    await runUsageSave(opts.title, opts.content, opts.dbId, { json: !!opts.json });
   });
 
 usageCmd

@@ -7,6 +7,7 @@ export const DEFAULT_CONSOLE_PORT = 7842;
 
 export interface ConsoleOptions {
   port?: number;
+  open?: boolean;
 }
 
 async function isPortAvailable(port: number): Promise<boolean> {
@@ -37,7 +38,12 @@ export async function runConsole(options: ConsoleOptions = {}): Promise<void> {
     console.log(`   (请求的端口 ${requestedPort} 被占用，已自动改为 ${handle.port})`);
   }
   console.log(`   在浏览器中管理连接配置和 SQL 用法笔记`);
-  console.log(`   关闭浏览器窗口不会退出 CLI；要退出请按 Ctrl+C\n`);
+  console.log(`   关闭浏览器窗口不会退出 CLI；要退出请按 Ctrl+C`);
+  if (!options.open) {
+    console.log(`   (默认不自动打开浏览器；加 --open 启用，或手动复制上面 URL)\n`);
+  } else {
+    console.log();
+  }
 
   const forceExit = (reason: string) => {
     console.log(`\n👋  ${reason}, 退出 db-driver console\n`);
@@ -49,10 +55,12 @@ export async function runConsole(options: ConsoleOptions = {}): Promise<void> {
   process.on('SIGINT', () => forceExit('收到 SIGINT 信号'));
   process.on('SIGTERM', () => forceExit('收到 SIGTERM 信号'));
 
-  try {
-    await open(handle.url, { wait: false });
-  } catch {
-    console.log('   (自动打开浏览器失败，请手动复制上面的 URL)');
+  if (options.open) {
+    try {
+      await open(handle.url, { wait: false });
+    } catch {
+      console.log('   (自动打开浏览器失败，请手动复制上面的 URL)');
+    }
   }
 
   await new Promise(() => {});

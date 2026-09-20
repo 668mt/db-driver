@@ -38,11 +38,6 @@ function openInEditor(file: string): Promise<void> {
   });
 }
 
-function preview(s: string, max = 60): string {
-  const first = s.split('\n')[0];
-  return first.length > max ? first.slice(0, max) + '…' : first;
-}
-
 export async function runUsageList(options: UsageListOptions): Promise<void> {
   const entries = listUsage(options.dbId, options.search);
   const filters: string[] = [];
@@ -64,7 +59,7 @@ export async function runUsageList(options: UsageListOptions): Promise<void> {
     console.log(`(没有${options.dbId ? `dbId=${options.dbId} 的` : ''}用法记录)`);
     console.log('');
     console.log('添加:');
-    console.log(`  db-driver usage save --dbId <id> --content "..."  # Markdown 内容，可含 SQL 代码块`);
+    console.log(`  db-driver usage save --dbId <id> --title "短标题" --content "Markdown 内容"`);
     console.log('手动编辑:');
     console.log(`  db-driver usage edit     # 用 $EDITOR 打开 ${usageFilePath()}`);
     closeConfigDb();
@@ -72,7 +67,7 @@ export async function runUsageList(options: UsageListOptions): Promise<void> {
   }
   console.log(`\n📚 ${entries.length} 条用法${filterDesc} (${usageFilePath()})\n`);
   for (const e of entries) {
-    console.log(`[${e.index}] ${e.addedAt} · ${e.dbId}`);
+    console.log(`[${e.index}] ${e.addedAt} · ${e.dbId} · ${e.title}`);
     for (const line of e.content.split('\n')) {
       console.log(`    ${line}`);
     }
@@ -80,32 +75,36 @@ export async function runUsageList(options: UsageListOptions): Promise<void> {
   }
   console.log('操作:');
   console.log(`  db-driver usage edit                                       # 手动编辑文件`);
-  console.log(`  db-driver usage save --dbId <id> --content "..."           # 追加一条（Markdown）`);
-  console.log(`  db-driver usage list --dbId <id>                           # 查某个库的用法`);
+  console.log(`  db-driver usage save --dbId <id> --title "..." --content "..."  # 追加一条`);
+  console.log(`  db-driver usage list --dbId <id> --search <kw>             # 查 + 搜索`);
   console.log(`  db-driver usage rm <index>                                 # 删除指定序号`);
   console.log(`  db-driver usage clear --dbId <id> --yes                    # 清空某库（不加 --dbId 清全部）`);
   closeConfigDb();
 }
 
 export async function runUsageSave(
+  title: string,
   content: string,
   dbId: string,
   options: UsageSaveOptions
 ): Promise<void> {
+  if (!title || !title.trim()) {
+    throw new Error('--title 不能为空');
+  }
   if (!content || !content.trim()) {
     throw new Error('--content 不能为空');
   }
   if (!dbId || !dbId.trim()) {
     throw new Error('--dbId 不能为空（用法必须绑定到具体数据库连接）');
   }
-  const entry = addUsage(content, dbId);
+  const entry = addUsage(title, content, dbId);
   if (options.json) {
     console.log(JSON.stringify({ ok: true, entry }, null, 2));
   } else {
     console.log(`✅ 已保存用法`);
     console.log(`   dbId:    ${entry.dbId}`);
+    console.log(`   标题:    ${entry.title}`);
     console.log(`   时间:    ${entry.addedAt}`);
-    console.log(`   内容:    ${preview(entry.content)}`);
     console.log(`   文件:    ${usageFilePath()}`);
   }
   closeConfigDb();
@@ -154,31 +153,29 @@ export async function runUsageRemove(index: number, options: { json: boolean }):
   if (options.json) {
     console.log(JSON.stringify({ ok: true, removed }, null, 2));
   } else {
-    console.log(`✅ 已删除 [${index}] ${removed.addedAt} · ${removed.dbId}`);
+    console.log(`✅ 已删除 [${index}] ${removed.addedAt} · ${removed.dbId} · ${removed.title}`);
   }
   closeConfigDb();
 }
 
 export async function runUsageUpdate(
   index: number,
-  content: string,
+  title: string | undefined,
+  content: string | undefined,
   dbId: string | undefined,
   options: { json: boolean }
 ): Promise<void> {
   if (!Number.isInteger(index) || index < 1) {
     throw new Error('序号必须是 ≥ 1 的整数');
   }
-  if (!content || !content.trim()) {
-    throw new Error('--content 不能为空');
-  }
-  const updated = updateUsage(index, content, dbId);
+  const updated = updateUsage(index, title, content, dbId);
   if (!updated) {
     throw new Error(`未找到序号 [${index}]`);
   }
   if (options.json) {
     console.log(JSON.stringify({ ok: true, entry: updated }, null, 2));
   } else {
-    console.log(`✅ 已更新 [${index}] ${updated.dbId}`);
+    console.log(`✅ 已更新 [${index}] ${updated.dbId} · ${updated.title}`);
   }
   closeConfigDb();
 }

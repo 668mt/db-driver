@@ -7,13 +7,14 @@ export interface UsageEntry {
   index: number;
   addedAt: string;
   dbId: string;
+  title: string;
   content: string;
 }
 
 const HEADER = `# db-driver 用法笔记
 
-每条笔记绑定一个 dbId（数据库连接别名），便于按库查阅、复用。
-内容是自由 Markdown，可以包含代码块（\`\`\`sql ... \`\`\`）。
+每条笔记绑定一个 dbId（数据库连接别名）。
+标题是简短说明；正文是 Markdown 内容（可含 \`\`\`sql 代码块）。
 
 `;
 
@@ -30,26 +31,27 @@ function ensureFile(): void {
   }
 }
 
-function entryToBlock(addedAt: string, dbId: string, content: string): string {
-  return `## ${addedAt} · ${dbId}\n\n${content.trim()}\n\n`;
+function entryToBlock(addedAt: string, dbId: string, title: string, content: string): string {
+  return `## ${addedAt} · ${dbId} · ${title}\n\n${content.trim()}\n\n`;
 }
 
 function parseEntries(raw: string): UsageEntry[] {
   const entries: UsageEntry[] = [];
   const blocks = raw.split(/^## /m).slice(1);
   for (const b of blocks) {
-    const lines = b.split('\n');
-    const headingLine = lines[0].trim();
-    const dotIdx = headingLine.indexOf('·');
-    if (dotIdx < 0) continue;
-    const addedAt = headingLine.slice(0, dotIdx).trim();
-    const dbId = headingLine.slice(dotIdx + 1).trim();
-    const body = b.slice(b.indexOf('\n') + 1).trim();
+    const firstLineEnd = b.indexOf('\n');
+    const headingLine = (firstLineEnd >= 0 ? b.slice(0, firstLineEnd) : b).trim();
+    const body = firstLineEnd >= 0 ? b.slice(firstLineEnd + 1).trim() : '';
     if (!body) continue;
+    const parts = headingLine.split('·').map((s) => s.trim());
+    if (parts.length < 3) continue;
+    const [addedAt, dbId, ...rest] = parts;
+    const title = rest.join(' · ');
     entries.push({
       index: entries.length + 1,
       addedAt,
       dbId,
+      title,
       content: body,
     });
   }
@@ -65,27 +67,34 @@ export function listUsage(dbId?: string, keyword?: string): UsageEntry[] {
     all = all.filter(
       (e) =>
         e.dbId.toLowerCase().includes(k) ||
-        e.addedAt.toLowerCase().includes(k) ||
+        e.title.toLowerCase().includes(k) ||
         e.content.toLowerCase().includes(k)
     );
   }
   return all.sort((a, b) => {
     const c = a.dbId.localeCompare(b.dbId);
-    return c !== 0 ? c : b.addedAt.localeCompare(a.addedAt);
+    return c !== 0 ? c : a.title.localeCompare(b.title);
   });
 }
 
-export function addUsage(content: string, dbId: string): UsageEntry {
+export function addUsage(title: string, content: string, dbId: string): UsageEntry {
   if (!dbId || !dbId.trim()) {
     throw new Error('dbId 不能为空（用法必须绑定到具体数据库连接）');
+  }
+  if (!title || !title.trim()) {
+    throw new Error('标题不能为空');
   }
   if (!content || !content.trim()) {
     throw new Error('笔记内容不能为空');
   }
   ensureFile();
   const addedAt = now();
-  appendFileSync(USAGE_FILE, entryToBlock(addedAt, dbId.trim(), content), 'utf8');
-  return { index: 0, addedAt, dbId: dbId.trim(), content: content.trim() };
+  appendFileSync(
+    USAGE_FILE,
+    entryToBlock(addedAt, dbId.trim(), title.trim(), content),
+    'utf8'
+  );
+  return { index: 0, addedAt, dbId: dbId.trim(), title: title.trim(), content: content.trim() };
 }
 
 export function clearUsage(dbId?: string): number {
@@ -94,7 +103,8 @@ export function clearUsage(dbId?: string): number {
   const filtered = dbId ? all.filter((e) => e.dbId !== dbId) : [];
   ensureFile();
   let raw = HEADER;
-  for (const e of filtered) raw += entryToBlock(e.addedAt, e.dbId, e.content);
+  for (const e of filtered)
+    raw += entryToBlock(e.addedAt, e.dbId, e.title, e.content);
   writeFileSync(USAGE_FILE, raw, 'utf8');
   return before - filtered.length;
 }
@@ -106,30 +116,32 @@ export function removeUsage(index: number): UsageEntry | null {
   const remaining = all.filter((e) => e.index !== index);
   ensureFile();
   let raw = HEADER;
-  for (const e of remaining) raw += entryToBlock(e.addedAt, e.dbId, e.content);
+  for (const e of remaining)
+    raw += entryToBlock(e.addedAt, e.dbId, e.title, e.content);
   writeFileSync(USAGE_FILE, raw, 'utf8');
   return target;
 }
 
 export function updateUsage(
   index: number,
-  content: string,
+  title: string | undefined,
+  content: string | undefined,
   dbId: string | undefined
 ): UsageEntry | null {
   const all = listUsage();
   const idx = all.findIndex((e) => e.index === index);
   if (idx < 0) return null;
-  if (!content || !content.trim()) throw new Error('笔记内容不能为空');
+  const finalTitle = (title ?? all[idx].title).trim();
+  const finalContent = (content ?? all[idx].content).trim();
   const finalDbId = (dbId ?? all[idx].dbId).trim();
+  if (!finalTitle) throw new Error('标题不能为空');
+  if (!finalContent) throw new Error('笔记内容不能为空');
   if (!finalDbId) throw new Error('dbId 不能为空');
-  all[idx] = {
-    ...all[idx],
-    dbId: finalDbId,
-    content: content.trim(),
-  };
+  all[idx] = { ...all[idx], dbId: finalDbId, title: finalTitle, content: finalContent };
   ensureFile();
   let raw = HEADER;
-  for (const e of all) raw += entryToBlock(e.addedAt, e.dbId, e.content);
+  for (const e of all)
+    raw += entryToBlock(e.addedAt, e.dbId, e.title, e.content);
   writeFileSync(USAGE_FILE, raw, 'utf8');
   return all[idx];
 }

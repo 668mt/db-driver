@@ -245,7 +245,11 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
 
   if (req.method === 'POST' && url.pathname === '/api/usage') {
     try {
-      const body = (await readJson<{ content?: string; dbId?: string }>(req)) ?? {};
+      const body = (await readJson<{ title?: string; content?: string; dbId?: string }>(req)) ?? {};
+      if (!body.title || !body.title.trim()) {
+        jsonResponse(res, 400, { error: '--title 不能为空' });
+        return;
+      }
       if (!body.content || !body.content.trim()) {
         jsonResponse(res, 400, { error: '--content 不能为空' });
         return;
@@ -254,7 +258,7 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
         jsonResponse(res, 400, { error: '--dbId 不能为空（用法必须绑定到具体数据库连接）' });
         return;
       }
-      const entry = addUsage(body.content, body.dbId);
+      const entry = addUsage(body.title, body.content, body.dbId);
       jsonResponse(res, 200, entry);
     } catch (e) {
       jsonResponse(res, 400, { error: (e as Error).message });
@@ -265,12 +269,8 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
   if (req.method === 'PUT' && /^\/api\/usage\/\d+$/.test(url.pathname)) {
     try {
       const index = parseInt(url.pathname.replace('/api/usage/', ''), 10);
-      const body = (await readJson<{ content?: string; dbId?: string }>(req)) ?? {};
-      if (!body.content || !body.content.trim()) {
-        jsonResponse(res, 400, { error: '--content 不能为空' });
-        return;
-      }
-      const updated = updateUsage(index, body.content, body.dbId);
+      const body = (await readJson<{ title?: string; content?: string; dbId?: string }>(req)) ?? {};
+      const updated = updateUsage(index, body.title, body.content, body.dbId);
       if (!updated) {
         jsonResponse(res, 404, { error: `未找到序号 [${index}]` });
         return;
