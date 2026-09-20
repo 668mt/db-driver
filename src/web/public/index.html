@@ -1320,18 +1320,20 @@ async function loadUsageList() {
 
       $('usage-new-btn').addEventListener('click', resetUsageForm);
       $('usage-edit-btn').addEventListener('click', showUsageEditor);
-      $('usage-close-btn').addEventListener('click', () => {
+      function clearUsageForm() {
+        currentUsage = null;
         usageFormEl.style.display = 'none';
         usagePlaceholderEl.style.display = '';
-        currentUsage = null;
         $('usage-delete-btn').style.display = 'none';
+      }
+      $('usage-close-btn').addEventListener('click', () => {
+        clearUsageForm();
         renderUsageList();
       });
       $('usage-cancel-btn').addEventListener('click', () => {
         if (currentUsage) showUsageView(currentUsage);
         else {
-          usageFormEl.style.display = 'none';
-          usagePlaceholderEl.style.display = '';
+          clearUsageForm();
           renderUsageList();
         }
       });
@@ -1351,12 +1353,7 @@ async function loadUsageList() {
             return;
           }
           showToast('✓ 已删除');
-          currentUsage = null;
-          $('usage-note').value = '';
-          $('usage-sql').value = '';
-          $('usage-delete-btn').style.display = 'none';
-          usageFormEl.style.display = 'none';
-          usagePlaceholderEl.style.display = '';
+          clearUsageForm();
           await loadUsageList();
         } finally {
           btn.disabled = false;
