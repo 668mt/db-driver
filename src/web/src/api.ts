@@ -49,18 +49,18 @@ export const api = {
     const q = params.length ? '?' + params.join('&') : '';
     return jsonFetch(`/api/usage${q}`);
   },
-  saveUsage(title: string, content: string, dbId: string): Promise<UsageEntry> {
+  saveUsage(title: string, content: string, dbIds: string[]): Promise<UsageEntry> {
     return jsonFetch('/api/usage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, content, dbId }),
+      body: JSON.stringify({ title, content, dbIds }),
     });
   },
-  updateUsage(index: number, title: string, content: string, dbId: string): Promise<UsageEntry> {
+  updateUsage(index: number, title: string, content: string, dbIds: string[]): Promise<UsageEntry> {
     return jsonFetch(`/api/usage/${index}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, content, dbId }),
+      body: JSON.stringify({ title, content, dbIds }),
     });
   },
   deleteUsage(index: number): Promise<{ ok: true; removed: UsageEntry }> {
@@ -133,6 +133,44 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ base64, passphrase, mode }),
+    });
+  },
+  exportUsage(
+    indices: number[]
+  ): Promise<{
+    ok: true;
+    filename: string;
+    count: number;
+    base64: string;
+    size: number;
+  }> {
+    return jsonFetch('/api/usage/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ indices }),
+    });
+  },
+  importUsagePreview(
+    base64: string
+  ): Promise<{
+    ok: true;
+    total: number;
+    skipped: number;
+    dbIds: string[];
+  }> {
+    return jsonFetch('/api/usage/import/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64 }),
+    });
+  },
+  importUsageConfirm(
+    base64: string
+  ): Promise<{ ok: true; added: number; errors: string[] }> {
+    return jsonFetch('/api/usage/import/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64 }),
     });
   },
 };

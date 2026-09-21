@@ -161,6 +161,20 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
   }
 
   // 静态资源：Vite 输出在 dist/web/assets/*
+  if (req.method === 'GET' && url.pathname === '/favicon.svg') {
+    try {
+      const data = readFileSync(join(PUBLIC_DIR, 'favicon.svg'));
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.end(data);
+    } catch {
+      res.statusCode = 404;
+      res.end();
+    }
+    return;
+  }
+
   if (req.method === 'GET' && url.pathname.startsWith('/assets/')) {
     try {
       const data = readFileSync(join(PUBLIC_DIR, url.pathname));
@@ -275,7 +289,7 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
 
   if (req.method === 'POST' && url.pathname === '/api/usage') {
     try {
-      const body = (await readJson<{ title?: string; content?: string; dbId?: string }>(req)) ?? {};
+      const body = (await readJson<{ title?: string; content?: string; dbId?: string; dbIds?: string[] }>(req)) ?? {};
       if (!body.title || !body.title.trim()) {
         jsonResponse(res, 400, { error: '--title 不能为空' });
         return;
@@ -284,11 +298,12 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
         jsonResponse(res, 400, { error: '--content 不能为空' });
         return;
       }
-      if (!body.dbId || !body.dbId.trim()) {
-        jsonResponse(res, 400, { error: '--dbId 不能为空（用法必须绑定到具体数据库连接）' });
+      const dbIds = parseDbIds(body.dbIds, body.dbId);
+      if (dbIds.length === 0) {
+        jsonResponse(res, 400, { error: '--dbIds 不能为空（用法必须绑定到至少一个数据库连接）' });
         return;
       }
-      const entry = addUsage(body.title, body.content, body.dbId);
+      const entry = addUsage(body.title, body.content, dbIds);
       jsonResponse(res, 200, entry);
     } catch (e) {
       jsonResponse(res, 400, { error: (e as Error).message });
@@ -299,8 +314,11 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
   if (req.method === 'PUT' && /^\/api\/usage\/\d+$/.test(url.pathname)) {
     try {
       const index = parseInt(url.pathname.replace('/api/usage/', ''), 10);
-      const body = (await readJson<{ title?: string; content?: string; dbId?: string }>(req)) ?? {};
-      const updated = updateUsage(index, body.title, body.content, body.dbId);
+      const body = (await readJson<{ title?: string; content?: string; dbId?: string; dbIds?: string[] }>(req)) ?? {};
+      const dbIds = body.dbIds !== undefined || body.dbId !== undefined
+        ? parseDbIds(body.dbIds, body.dbId)
+        : undefined;
+      const updated = updateUsage(index, body.title, body.content, dbIds);
       if (!updated) {
         jsonResponse(res, 404, { error: `未找到序号 [${index}]` });
         return;
@@ -320,6 +338,110 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
       return;
     }
     jsonResponse(res, 200, { ok: true, removed });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/usage/export') {
+    try {
+      const body = (await readJson<{ indices?: number[] }>(req)) ?? {};
+      const all = listUsage().entries;
+      const wanted = (body.indices ?? []).filter((n) => n > 0);
+      const selected = wanted.length === 0 ? all : all.filter((e) => wanted.includes(e.index));
+      if (selected.length === 0) {
+        jsonResponse(res, 400, { error: '没有选中任何笔记' });
+        return;
+      }
+      const payload = {
+        version: 1 as const,
+        exportedAt: new Date().toISOString(),
+        entries: selected.map((e) => ({
+          title: e.title,
+          dbIds: e.dbIds,
+          content: e.content,
+        })),
+      };
+      const json = Buffer.from(JSON.stringify(payload, null, 2), 'utf8');
+      const filename = `db-driver-usage-${Date.now()}.json`;
+      jsonResponse(res, 200, {
+        ok: true,
+        filename,
+        count: selected.length,
+        base64: json.toString('base64'),
+        size: json.length,
+      });
+    } catch (e) {
+      jsonResponse(res, 400, { error: (e as Error).message });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/usage/import/preview') {
+    try {
+      const body = (await readJson<{ base64?: string }>(req)) ?? {};
+      if (!body.base64) {
+        jsonResponse(res, 400, { error: '缺少 base64' });
+        return;
+      }
+      const buf = Buffer.from(body.base64, 'base64');
+      let payload: { version?: number; entries?: Array<{ title?: string; dbIds?: string[]; content?: string }> };
+      try {
+        payload = JSON.parse(buf.toString('utf8'));
+      } catch (e) {
+        jsonResponse(res, 400, { error: 'JSON 解析失败: ' + (e as Error).message });
+        return;
+      }
+      if (payload.version !== 1 || !Array.isArray(payload.entries)) {
+        jsonResponse(res, 400, { error: '不是有效的 db-driver usage 备份文件（缺少 version/entries）' });
+        return;
+      }
+      const valid = payload.entries.filter((e) => e.title?.trim() && e.content?.trim() && Array.isArray(e.dbIds));
+      const allDbIds = new Set<string>();
+      for (const e of valid) for (const d of e.dbIds!) allDbIds.add(d);
+      jsonResponse(res, 200, {
+        ok: true,
+        total: valid.length,
+        skipped: payload.entries.length - valid.length,
+        dbIds: Array.from(allDbIds),
+      });
+    } catch (e) {
+      jsonResponse(res, 400, { error: (e as Error).message });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/usage/import/confirm') {
+    try {
+      const body = (await readJson<{ base64?: string }>(req)) ?? {};
+      if (!body.base64) {
+        jsonResponse(res, 400, { error: '缺少 base64' });
+        return;
+      }
+      const buf = Buffer.from(body.base64, 'base64');
+      let payload: { version?: number; entries?: Array<{ title?: string; dbIds?: string[]; content?: string }> };
+      try {
+        payload = JSON.parse(buf.toString('utf8'));
+      } catch (e) {
+        jsonResponse(res, 400, { error: 'JSON 解析失败: ' + (e as Error).message });
+        return;
+      }
+      if (payload.version !== 1 || !Array.isArray(payload.entries)) {
+        jsonResponse(res, 400, { error: '不是有效的 db-driver usage 备份文件' });
+        return;
+      }
+      let added = 0;
+      const errors: string[] = [];
+      for (const e of payload.entries) {
+        try {
+          addUsage(e.title || '', e.content || '', e.dbIds || []);
+          added++;
+        } catch (err) {
+          errors.push(`${e.title || '(无标题)'}: ${(err as Error).message}`);
+        }
+      }
+      jsonResponse(res, 200, { ok: true, added, errors });
+    } catch (e) {
+      jsonResponse(res, 400, { error: (e as Error).message });
+    }
     return;
   }
 
@@ -473,6 +595,16 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
     }
     return;
   }
+
+function parseDbIds(dbIds: string[] | undefined, dbId: string | undefined): string[] {
+  if (Array.isArray(dbIds)) {
+    return Array.from(new Set(dbIds.map((s) => (s || '').trim()).filter(Boolean)));
+  }
+  if (typeof dbId === 'string' && dbId.trim()) {
+    return [dbId.trim()];
+  }
+  return [];
+}
 
   jsonResponse(res, 404, { error: 'not found' });
 }

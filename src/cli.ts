@@ -21,12 +21,13 @@ import { runUpdate } from './commands/update.js';
 import { runExport } from './commands/export.js';
 import { runImport } from './commands/import.js';
 import {
+  runUsageBind,
   runUsageClear,
   runUsageDetail,
-  runUsageEdit,
   runUsageList,
   runUsageRemove,
   runUsageSave,
+  runUsageUpdate,
 } from './commands/usage.js';
 import { SKILL_DEST } from './utils/paths.js';
 import { clearPool } from './db/pool.js';
@@ -264,22 +265,32 @@ program
 
 const usageCmd = program
   .command('usage')
-  .description('管理 SQL 用法笔记（明文 Markdown，按 dbId 绑定到具体数据库连接）')
+  .description('管理 SQL 用法笔记（明文 Markdown，绑定到一个或多个 dbId）')
   .option('--json', '以 JSON 格式输出', false)
   .action(async (opts: { json: boolean }) => {
-    await runUsageList({ dbId: undefined, json: !!opts.json });
+    await runUsageList({ json: !!opts.json });
   });
 
 usageCmd
   .command('list')
   .description('列出用法（默认只显示标题；--dbId / --search 过滤；--limit 限制条数）')
-  .option('--dbId <id>', '只显示该 dbId 的用法')
-  .option('--search <keyword>', '关键词搜索（dbId / title / content 不区分大小写）')
+  .option('--dbId <ids>', '只显示该 dbId 的用法（一个笔记可关联多个 dbId，逗号分隔 OR 匹配）')
+  .option('--search <keyword>', '关键词搜索（dbIds / title / content 不区分大小写）')
   .option('--limit <n>', '最多显示多少条（不传=全部）', (v) => parseInt(v, 10))
   .option('--json', '以 JSON 格式输出', false)
   .action(
     async (opts: { dbId?: string; search?: string; limit?: number; json: boolean }) => {
-      await runUsageList({ dbId: opts.dbId, search: opts.search, limit: opts.limit, json: !!opts.json });
+      const dbIds = opts.dbId
+        ? Array.from(
+            new Set(
+              opts.dbId
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean)
+            )
+          )
+        : undefined;
+      await runUsageList({ dbIds, search: opts.search, limit: opts.limit, json: !!opts.json });
     }
   );
 
@@ -296,7 +307,7 @@ usageCmd
 usageCmd
   .command('save')
   .description('追加一条新用法（--dbId / --title 必填且非空；--content 或 --content-file 二选一）')
-  .requiredOption('--dbId <id>', '绑定的数据库连接别名（必填）')
+  .requiredOption('--dbId <ids>', '绑定的数据库连接别名（必填，多个用逗号分隔，如 a,b,c）')
   .requiredOption('--title <t>', '短标题（必填）')
   .option('--content <md>', 'Markdown 内容（可含 ```sql 代码块）')
   .option('--content-file <path>', '从文件读取内容（- 表示 stdin，适合长 SQL/Markdown）')
@@ -321,25 +332,99 @@ usageCmd
       if (!content.trim()) {
         throw new Error('--content 或 --content-file 读取的内容不能为空');
       }
-      await runUsageSave(opts.title, content, opts.dbId, { json: !!opts.json });
+      await runUsageSave(opts.title, content, opts.dbId, { dbIds: [], json: !!opts.json });
     }
   );
 
 usageCmd
-  .command('edit')
-  .description('用 $EDITOR 打开整个 usage.md 手动整理')
-  .action(async () => {
-    await runUsageEdit();
-  });
+  .command('update <index>')
+  .description('更新指定序号的笔记（AI 友好：--title/--content/--content-file/--dbIds 可选）')
+  .option('--title <t>', '新标题（不改则省略）')
+  .option('--content <md>', '新 Markdown 内容（不改则省略）')
+  .option('--content-file <path>', '从文件读取新内容（- 表示 stdin）')
+  .option('--dbIds <ids>', '新 dbIds（逗号分隔；不改则省略）')
+  .option('--json', '以 JSON 格式输出', false)
+  .action(
+    async (
+      indexStr: string,
+      opts: { title?: string; content?: string; contentFile?: string; dbIds?: string; json: boolean }
+    ) => {
+      const index = parseInt(indexStr, 10);
+      if (Number.isNaN(index)) throw new Error(`序号必须是整数: ${indexStr}`);
+      let content: string | undefined;
+      if (opts.contentFile) {
+        if (opts.content) {
+          throw new Error('--content 和 --content-file 只能二选一');
+        }
+        const path = opts.contentFile === '-' ? 0 : opts.contentFile;
+        content = readFileSync(path, 'utf8');
+      } else {
+        content = opts.content;
+      }
+      await runUsageUpdate(index, opts.title, content, opts.dbIds, { json: !!opts.json });
+    }
+  );
+
+usageCmd
+  .command('bind')
+  .description('批量给笔记加/减 dbId 关联（--add / --remove 逗号分隔；不加 --entries 默认所有）')
+  .option('--add <ids>', '要新增关联的 dbId（逗号分隔）')
+  .option('--remove <ids>', '要移除关联的 dbId（逗号分隔）')
+  .option('--entries <idxs>', '只对指定序号的笔记生效（逗号分隔；不加默认所有）')
+  .option('--json', '以 JSON 格式输出', false)
+  .action(
+    async (opts: { add?: string; remove?: string; entries?: string; json: boolean }) => {
+      const add = opts.add
+        ? Array.from(
+            new Set(
+              opts.add
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean)
+            )
+          )
+        : [];
+      const remove = opts.remove
+        ? Array.from(
+            new Set(
+              opts.remove
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean)
+            )
+          )
+        : [];
+      if (add.length === 0 && remove.length === 0) {
+        throw new Error('必须指定 --add 或 --remove 至少一个');
+      }
+      const entries = opts.entries
+        ? opts.entries
+            .split(',')
+            .map((s) => parseInt(s.trim(), 10))
+            .filter((n) => !Number.isNaN(n) && n > 0)
+        : undefined;
+      await runUsageBind({ add, remove, entries, json: !!opts.json });
+    }
+  );
 
 usageCmd
   .command('clear')
   .description('清空用法（--dbId 清某个库，不加清全部；不可撤销）')
-  .option('--dbId <id>', '只清该 dbId 的用法')
+  .option('--dbId <ids>', '只清该 dbId 的用法（多个用逗号分隔）')
   .option('--yes', '跳过确认', false)
   .option('--json', '以 JSON 格式输出', false)
   .action(async (opts: { dbId?: string; yes: boolean; json: boolean }) => {
-    await runUsageClear({ dbId: opts.dbId, yes: !!opts.yes, json: !!opts.json });
+    const dbIds = opts.dbId
+      ? Array.from(
+          new Set(
+            opts.dbId
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          )
+        )
+      : undefined;
+    await runUsageClear({ dbIds, yes: !!opts.yes, json: !!opts.json });
   });
 
 usageCmd
@@ -405,10 +490,14 @@ SQL 执行:
   $ db-driver usage list --dbId my-app --limit 20        # 查某个库 + 限制条数
   $ db-driver usage list --search "用户"                  # 关键词搜索
   $ db-driver usage detail 3                              # 查看第 3 条完整 Markdown
-  $ db-driver usage save --dbId my-app --title "..." --content "..."   # 追加一条
-  $ db-driver usage save --dbId my-app --title "..." --content-file ./note.md  # 从文件读
-  $ db-driver usage save --dbId my-app --title "..." --content-file -            # 从 stdin 读
-  $ db-driver usage edit                                  # 用 $EDITOR 手动整理
+  $ db-driver usage save --dbId a,b --title "..." --content "..."   # 多 dbId 逗号分隔
+  $ db-driver usage save --dbId a --title "..." --content-file ./note.md  # 从文件读
+  $ db-driver usage save --dbId a --title "..." --content-file -            # 从 stdin 读
+  $ db-driver usage bind --add prd                        # 给所有笔记加 prd 关联
+  $ db-driver usage bind --remove staging                 # 给所有笔记删 staging 关联
+  $ db-driver usage bind --entries 1,2 --add prd          # 只给指定笔记加
+  $ db-driver usage update 3 --content "..."              # 直接更新正文（AI 用，非阻塞）
+  $ db-driver usage update 3 --dbIds "a,b,c" --title "新标题"  # 改关联和标题（不改正文）
   $ db-driver usage rm 3                                  # 删除第 3 条
   $ db-driver usage clear --dbId my-app --yes             # 清空某个库
 

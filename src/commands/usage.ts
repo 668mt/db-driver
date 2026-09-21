@@ -1,7 +1,6 @@
-import { spawn } from 'child_process';
-
 import {
   addUsage,
+  bindDbIds,
   clearUsage,
   getUsage,
   listUsage,
@@ -12,47 +11,63 @@ import {
 import { closeConfigDb } from '../store/configStore.js';
 
 export interface UsageListOptions {
-  dbId?: string;
+  dbIds?: string[];
   search?: string;
   limit?: number;
   json: boolean;
 }
 
 export interface UsageSaveOptions {
+  dbIds: string[];
+  json: boolean;
+}
+
+export interface UsageUpdateOptions {
+  json: boolean;
+}
+
+export interface UsageBindOptions {
+  add: string[];
+  remove: string[];
+  entries?: number[];
   json: boolean;
 }
 
 export interface UsageClearOptions {
-  dbId?: string;
+  dbIds?: string[];
   yes: boolean;
   json: boolean;
 }
 
-function openInEditor(file: string): Promise<void> {
-  const editor = process.env.EDITOR || (process.platform === 'win32' ? 'notepad' : 'vi');
-  return new Promise((resolve, reject) => {
-    const child = spawn(editor, [file], { stdio: 'inherit', shell: process.platform === 'win32' });
-    child.on('exit', (code) => {
-      if (code === 0 || code === null) resolve();
-      else reject(new Error(`编辑器退出码 ${code}`));
-    });
-    child.on('error', (e) => reject(new Error(`无法启动编辑器 ${editor}：${e.message}`)));
-  });
+function parseDbIds(s: string | undefined): string[] | undefined {
+  if (s === undefined) return undefined;
+  const ids = Array.from(
+    new Set(
+      s
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean)
+    )
+  );
+  return ids;
+}
+
+function formatDbIds(ids: string[]): string {
+  return ids.join(', ');
 }
 
 export async function runUsageList(options: UsageListOptions): Promise<void> {
-  const { total, entries } = listUsage(options.dbId, options.search, options.limit);
+  const dbIdFilter = options.dbIds && options.dbIds.length > 0 ? options.dbIds[0] : undefined;
+  const { total, entries } = listUsage(dbIdFilter, options.search, options.limit);
   const filters: string[] = [];
-  if (options.dbId) filters.push(`dbId=${options.dbId}`);
+  if (options.dbIds && options.dbIds.length > 0) filters.push(`dbId=${options.dbIds.join('|')}`);
   if (options.search) filters.push(`search="${options.search}"`);
   const filterDesc = filters.length > 0 ? ` (${filters.join(', ')})` : '';
-  const shownDesc = options.limit && total > entries.length
-    ? ` 显示 ${entries.length} / ${total}`
-    : '';
+  const shownDesc = options.limit && total > entries.length ? ` 显示 ${entries.length} / ${total}` : '';
   if (options.json) {
     console.log(
       JSON.stringify(
-        { total, shown: entries.length, dbId: options.dbId ?? null, entries, file: usageFilePath() },
+        { total, shown: entries.length, dbIds: options.dbIds ?? null, entries, file: usageFilePath() },
         null,
         2
       )
@@ -62,12 +77,14 @@ export async function runUsageList(options: UsageListOptions): Promise<void> {
   }
   if (entries.length === 0) {
     if (total === 0) {
-      console.log(`(没有${options.dbId ? `dbId=${options.dbId} 的` : ''}用法记录)`);
+      console.log(`(没有${options.dbIds && options.dbIds.length > 0 ? `dbId=${options.dbIds.join('|')} 的` : ''}用法记录)`);
       console.log('');
       console.log('添加:');
-      console.log(`  db-driver usage save --dbId <id> --title "短标题" --content "Markdown 内容"`);
-      console.log('手动编辑:');
-      console.log(`  db-driver usage edit     # 用 $EDITOR 打开 ${usageFilePath()}`);
+      console.log(`  db-driver usage save --dbId a,b --title "短标题" --content "Markdown 内容"`);
+      console.log('更新:');
+      console.log(`  db-driver usage update <index> --title "..." --content "..." --dbIds a,b`);
+      console.log('批量改关联:');
+      console.log(`  db-driver usage bind --add prd`);
       closeConfigDb();
       return;
     }
@@ -77,18 +94,19 @@ export async function runUsageList(options: UsageListOptions): Promise<void> {
   }
   console.log(`\n📚 ${total} 条用法${shownDesc}${filterDesc} (${usageFilePath()})\n`);
   for (const e of entries) {
+    const dbStr = e.dbIds.join(', ');
+    console.log(`[${e.index}] ${e.addedAt} · ${dbStr} · ${e.title}`);
     const firstLine = e.content.split('\n')[0].trim();
     const preview = firstLine.length > 80 ? firstLine.slice(0, 80) + '…' : firstLine;
-    console.log(`[${e.index}] ${e.addedAt} · ${e.dbId} · ${e.title}`);
     if (preview) console.log(`    ${preview}`);
     console.log('');
   }
   console.log('操作:');
   console.log(`  db-driver usage detail <index>                            # 查看某条完整内容`);
-  console.log(`  db-driver usage save --dbId <id> --title "..." --content "..."  # 追加一条`);
-  console.log(`  db-driver usage list --dbId <id> --search <kw> --limit 50 # 查 + 搜索 + 限制`);
+  console.log(`  db-driver usage save --dbId a,b --title "..." --content "..."  # 多 dbId 逗号分隔`);
+  console.log(`  db-driver usage list --dbId mukeyuan-dev --search <kw> --limit 50 # 查 + 搜索 + 限制`);
   console.log(`  db-driver usage rm <index>                                 # 删除指定序号`);
-  console.log(`  db-driver usage clear --dbId <id> --yes                    # 清空某库（不加 --dbId 清全部）`);
+  console.log(`  db-driver usage clear --dbId mukeyuan-dev --yes            # 清空某库（不加 --dbId 清全部）`);
   if (options.limit && total > entries.length) {
     console.log(`\n提示: 还有 ${total - entries.length} 条未显示，加 --limit ${total} 看全部`);
   }
@@ -98,24 +116,25 @@ export async function runUsageList(options: UsageListOptions): Promise<void> {
 export async function runUsageSave(
   title: string,
   content: string,
-  dbId: string,
+  dbIdsRaw: string | undefined,
   options: UsageSaveOptions
 ): Promise<void> {
+  const dbIds = options.dbIds.length > 0 ? options.dbIds : parseDbIds(dbIdsRaw) ?? [];
+  if (dbIds.length === 0) {
+    throw new Error('--dbId 必填且非空（逗号分隔多个，如 --dbId a,b,c）');
+  }
   if (!title || !title.trim()) {
     throw new Error('--title 不能为空');
   }
   if (!content || !content.trim()) {
     throw new Error('--content 不能为空');
   }
-  if (!dbId || !dbId.trim()) {
-    throw new Error('--dbId 不能为空（用法必须绑定到具体数据库连接）');
-  }
-  const entry = addUsage(title, content, dbId);
+  const entry = addUsage(title, content, dbIds);
   if (options.json) {
     console.log(JSON.stringify({ ok: true, entry }, null, 2));
   } else {
     console.log(`✅ 已保存用法`);
-    console.log(`   dbId:    ${entry.dbId}`);
+    console.log(`   dbIds:   ${formatDbIds(entry.dbIds)}`);
     console.log(`   标题:    ${entry.title}`);
     console.log(`   时间:    ${entry.addedAt}`);
     console.log(`   文件:    ${usageFilePath()}`);
@@ -135,7 +154,7 @@ export async function runUsageDetail(index: number, options: { json: boolean }):
     console.log(JSON.stringify({ ok: true, entry }, null, 2));
   } else {
     console.log(`\n📖 用法笔记 [${entry.index}]\n`);
-    console.log(`   dbId:    ${entry.dbId}`);
+    console.log(`   dbIds:   ${formatDbIds(entry.dbIds)}`);
     console.log(`   标题:    ${entry.title}`);
     console.log(`   时间:    ${entry.addedAt}`);
     console.log(`   内容:`);
@@ -148,36 +167,52 @@ export async function runUsageDetail(index: number, options: { json: boolean }):
   closeConfigDb();
 }
 
-export async function runUsageEdit(): Promise<void> {
-  console.log('用法笔记存在 SQLite 数据库中（' + usageFilePath() + '）。');
-  console.log('请用 CLI 增删改查：');
-  console.log('  db-driver usage save --dbId <id> --title "..." --content "..."');
-  console.log('  db-driver usage list [--dbId <id>] [--search <kw>]');
-  console.log('  db-driver usage rm <index>');
-  console.log('  db-driver usage clear [--dbId <id>] --yes');
-  console.log('高级用户：可以用 sqlite3 CLI 或 GUI 工具直接编辑 usage.db。');
+export async function runUsageBind(options: UsageBindOptions): Promise<void> {
+  const result = bindDbIds(options.add, options.remove, options.entries);
+  if (options.json) {
+    console.log(JSON.stringify({ ok: true, ...result }, null, 2));
+  } else {
+    const parts: string[] = [];
+    if (result.added > 0) parts.push(`+${result.added} 条关联`);
+    if (result.removed > 0) parts.push(`-${result.removed} 条关联`);
+    console.log(`✅ 批量更新完成：${parts.join('，') || '无变化'}（影响 ${result.affected} 条笔记）`);
+    if (options.add.length > 0) console.log(`   + add:     ${options.add.join(', ')}`);
+    if (options.remove.length > 0) console.log(`   - remove:  ${options.remove.join(', ')}`);
+    if (options.entries && options.entries.length > 0) {
+      console.log(`   范围:      [${options.entries.join(', ')}]`);
+    } else {
+      console.log(`   范围:      所有笔记`);
+    }
+  }
   closeConfigDb();
 }
 
 export async function runUsageClear(options: UsageClearOptions): Promise<void> {
-  const before = listUsage(options.dbId).total;
+  const dbIdFilter = options.dbIds && options.dbIds.length > 0 ? options.dbIds[0] : undefined;
+  const before = dbIdFilter ? listUsage(dbIdFilter).total : (() => {
+    let t = 0;
+    for (const id of options.dbIds ?? []) t += listUsage(id).total;
+    return options.dbIds && options.dbIds.length > 0 ? t : listUsage().total;
+  })();
   if (before === 0) {
     if (options.json) {
-      console.log(JSON.stringify({ ok: true, cleared: 0, dbId: options.dbId ?? null }));
+      console.log(JSON.stringify({ ok: true, cleared: 0, dbIds: options.dbIds ?? null }));
     } else {
-      console.log(`(没有${options.dbId ? `dbId=${options.dbId} 的` : ''}用法可清空)`);
+      console.log(`(没有${options.dbIds && options.dbIds.length > 0 ? `dbId=${options.dbIds.join('|')} 的` : ''}用法可清空)`);
     }
     closeConfigDb();
     return;
   }
   if (!options.yes) {
     throw new Error(
-      `将清空 ${before} 条${options.dbId ? `dbId=${options.dbId} 的` : ''}用法。加 --yes 确认`
+      `将清空 ${before} 条${options.dbIds && options.dbIds.length > 0 ? `dbId=${options.dbIds.join('|')} 的` : ''}用法。加 --yes 确认`
     );
   }
-  const cleared = clearUsage(options.dbId);
+  let cleared = 0;
+  for (const id of options.dbIds ?? []) cleared += clearUsage(id);
+  if (!options.dbIds || options.dbIds.length === 0) cleared = clearUsage();
   if (options.json) {
-    console.log(JSON.stringify({ ok: true, cleared, dbId: options.dbId ?? null }, null, 2));
+    console.log(JSON.stringify({ ok: true, cleared, dbIds: options.dbIds ?? null }, null, 2));
   } else {
     console.log(`✅ 已清空 ${cleared} 条用法`);
   }
@@ -195,7 +230,7 @@ export async function runUsageRemove(index: number, options: { json: boolean }):
   if (options.json) {
     console.log(JSON.stringify({ ok: true, removed }, null, 2));
   } else {
-    console.log(`✅ 已删除 [${index}] ${removed.addedAt} · ${removed.dbId} · ${removed.title}`);
+    console.log(`✅ 已删除 [${index}] ${formatDbIds(removed.dbIds)} · ${removed.title}`);
   }
   closeConfigDb();
 }
@@ -204,22 +239,21 @@ export async function runUsageUpdate(
   index: number,
   title: string | undefined,
   content: string | undefined,
-  dbId: string | undefined,
-  options: { json: boolean }
+  dbIdsRaw: string | undefined,
+  options: UsageUpdateOptions
 ): Promise<void> {
   if (!Number.isInteger(index) || index < 1) {
     throw new Error('序号必须是 ≥ 1 的整数');
   }
-  const updated = updateUsage(index, title, content, dbId);
+  const dbIds = parseDbIds(dbIdsRaw);
+  const updated = updateUsage(index, title, content, dbIds);
   if (!updated) {
     throw new Error(`未找到序号 [${index}]`);
   }
   if (options.json) {
     console.log(JSON.stringify({ ok: true, entry: updated }, null, 2));
   } else {
-    console.log(`✅ 已更新 [${index}] ${updated.dbId} · ${updated.title}`);
+    console.log(`✅ 已更新 [${index}] ${formatDbIds(updated.dbIds)} · ${updated.title}`);
   }
   closeConfigDb();
 }
-
-void runUsageUpdate;

@@ -25,7 +25,7 @@ export interface DbConnectionConfig {
 export interface UsageEntry {
   index: number;
   addedAt: string;
-  dbId: string;
+  dbIds: string[];
   title: string;
   content: string;
 }
