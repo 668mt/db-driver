@@ -12,7 +12,7 @@ export function PasswordField({ value, onChange }: Props) {
     <div className={'password-field' + (shown ? ' password-shown' : '')}>
       <input
         id="password"
-        type="text"
+        type={shown ? 'text' : 'password'}
         value={value}
         placeholder="••••••"
         autoComplete="off"
@@ -26,7 +26,7 @@ export function PasswordField({ value, onChange }: Props) {
       <button
         type="button"
         className="password-toggle"
-        title="显示/隐藏密码"
+        title={shown ? '隐藏密码' : '显示密码'}
         onClick={() => setShown((s) => !s)}
       >
         <svg className="eye-show" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
