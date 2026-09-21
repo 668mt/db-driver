@@ -12,6 +12,7 @@ import {
   listConnections,
   upsertConnection,
 } from '../store/configStore.js';
+import { decryptWithPassphrase } from '../utils/crypto.js';
 import {
   addUsage,
   listUsage,
@@ -19,6 +20,7 @@ import {
   updateUsage,
 } from '../store/usageStore.js';
 import type { DbConnectionConfig, DbPermissions, DbType } from '../db/types.js';
+import { encryptWithPassphrase } from '../utils/crypto.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname);
@@ -330,7 +332,180 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
     return;
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/export/connections') {
+    try {
+      const body = (await readJson<{
+        dbIds?: string[];
+        passphrase?: string;
+      }>(req)) ?? {};
+      const passphrase = body.passphrase ?? '';
+      if (passphrase.length > 0 && passphrase.length < 8) {
+        jsonResponse(res, 400, {
+          error: 'passphrase 留空 = 不加密；填了至少 8 位 = 加密文件',
+        });
+        return;
+      }
+      const all = listConnections();
+      const wanted = (body.dbIds ?? []).filter(Boolean);
+      const selected = wanted.length === 0 ? all : all.filter((c) => wanted.includes(c.dbId));
+      if (selected.length === 0) {
+        jsonResponse(res, 400, { error: '没有选中任何连接' });
+        return;
+      }
+      const payload = {
+        version: 1 as const,
+        exportedAt: new Date().toISOString(),
+        connections: selected,
+      };
+      const wantEncrypted = passphrase.length >= 8;
+      const buf = wantEncrypted
+        ? encryptWithPassphrase(Buffer.from(JSON.stringify(payload), 'utf8'), passphrase)
+        : Buffer.from(JSON.stringify(payload), 'utf8');
+      const filename = `db-driver-backup-${Date.now()}.${wantEncrypted ? 'exp' : 'json'}`;
+      jsonResponse(res, 200, {
+        ok: true,
+        filename,
+        count: selected.length,
+        encrypted: wantEncrypted,
+        base64: buf.toString('base64'),
+        size: buf.length,
+      });
+    } catch (e) {
+      jsonResponse(res, 400, { error: (e as Error).message });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/import/preview') {
+    try {
+      const body = (await readJson<{ base64?: string; passphrase?: string }>(req)) ?? {};
+      if (!body.base64) {
+        jsonResponse(res, 400, { error: '缺少 base64' });
+        return;
+      }
+      const buf = Buffer.from(body.base64, 'base64');
+      const result = parseImportPayload(buf, body.passphrase ?? '');
+      if (!result.ok) {
+        jsonResponse(res, 400, { error: result.error, needsPassphrase: result.needsPassphrase });
+        return;
+      }
+      const existing = new Set(listConnections().map((c) => c.dbId));
+      jsonResponse(res, 200, {
+        ok: true,
+        encrypted: result.encrypted,
+        total: result.connections.length,
+        newCount: result.connections.filter((c) => !existing.has(c.dbId)).length,
+        conflictCount: result.connections.filter((c) => existing.has(c.dbId)).length,
+        connections: result.connections.map((c) => ({
+          dbId: c.dbId,
+          type: c.type,
+          host: c.host,
+          port: c.port,
+          user: c.user,
+          database: c.database,
+          description: c.description,
+          exists: existing.has(c.dbId),
+        })),
+      });
+    } catch (e) {
+      jsonResponse(res, 400, { error: (e as Error).message });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/import/confirm') {
+    try {
+      const body = (await readJson<{ base64?: string; passphrase?: string; mode?: 'skip' | 'replace' }>(req)) ?? {};
+      if (!body.base64) {
+        jsonResponse(res, 400, { error: '缺少 base64' });
+        return;
+      }
+      const buf = Buffer.from(body.base64, 'base64');
+      const result = parseImportPayload(buf, body.passphrase ?? '');
+      if (!result.ok) {
+        jsonResponse(res, 400, { error: result.error, needsPassphrase: result.needsPassphrase });
+        return;
+      }
+      const mode = body.mode === 'replace' ? 'replace' : 'skip';
+      const existing = new Set(listConnections().map((c) => c.dbId));
+      let added = 0;
+      let replaced = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+      for (const c of result.connections) {
+        const exists = existing.has(c.dbId);
+        if (exists && mode === 'skip') {
+          skipped++;
+          continue;
+        }
+        try {
+          upsertConnection({
+            dbId: c.dbId,
+            type: c.type,
+            host: c.host,
+            port: c.port,
+            user: c.user,
+            password: c.password,
+            database: c.database,
+            schema: c.schema,
+            description: c.description,
+            permissions: c.permissions,
+          });
+          if (exists) replaced++;
+          else added++;
+        } catch (e) {
+          errors.push(`${c.dbId}: ${(e as Error).message}`);
+        }
+      }
+      jsonResponse(res, 200, {
+        ok: true,
+        mode,
+        total: result.connections.length,
+        added,
+        replaced,
+        skipped,
+        errors,
+      });
+    } catch (e) {
+      jsonResponse(res, 400, { error: (e as Error).message });
+    }
+    return;
+  }
+
   jsonResponse(res, 404, { error: 'not found' });
+}
+
+function parseImportPayload(buf: Buffer, passphrase: string): {
+  ok: true;
+  encrypted: boolean;
+  connections: Array<Omit<DbConnectionConfig, 'createdAt' | 'updatedAt'>>;
+} | { ok: false; error: string; needsPassphrase?: boolean } {
+  let json: string;
+  let encrypted = false;
+  if (passphrase) {
+    try {
+      const decrypted = decryptWithPassphrase(buf, passphrase);
+      json = decrypted.toString('utf8');
+      encrypted = true;
+    } catch (e) {
+      return { ok: false, error: '解密失败：' + (e as Error).message };
+    }
+  } else {
+    json = buf.toString('utf8');
+  }
+  let payload: { version?: number; exportedAt?: string; connections?: unknown };
+  try {
+    payload = JSON.parse(json);
+  } catch {
+    if (!passphrase) {
+      return { ok: false, error: 'JSON 解析失败，且未提供 passphrase（文件可能已加密）', needsPassphrase: true };
+    }
+    return { ok: false, error: '解密后的内容不是有效 JSON' };
+  }
+  if (payload.version !== 1 || !Array.isArray(payload.connections)) {
+    return { ok: false, error: '不是有效的 db-driver 备份文件（缺少 version/connections）' };
+  }
+  return { ok: true, encrypted, connections: payload.connections as Array<Omit<DbConnectionConfig, 'createdAt' | 'updatedAt'>> };
 }
 
 function sanitize(conn: DbConnectionConfig): Omit<DbConnectionConfig, 'password'> & { password: string } {

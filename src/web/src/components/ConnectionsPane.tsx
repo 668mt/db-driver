@@ -6,6 +6,8 @@ import { showModal } from '../modal-bus.js';
 import { ConnectionList } from './ConnectionList.js';
 import { ConnectionForm } from './ConnectionForm.js';
 import { Empty } from './Empty.js';
+import { ExportModal } from './ExportModal.js';
+import { ImportModal } from './ImportModal.js';
 import type { DbConnectionConfig } from '../types.js';
 
 const EMPTY_CONN: Omit<DbConnectionConfig, 'createdAt' | 'updatedAt'> = {
@@ -20,9 +22,11 @@ const EMPTY_CONN: Omit<DbConnectionConfig, 'createdAt' | 'updatedAt'> = {
 };
 
 export function ConnectionsPane() {
-  const { list, reload } = useConnections();
+  const { list, reload, retest } = useConnections();
   const [current, setCurrent] = useState<DbConnectionConfig | null>(null);
   const [draft, setDraft] = useState<DbConnectionConfig | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const saveBtnRef = useRef<HTMLButtonElement>(null);
 
   const handleNew = () => {
@@ -37,6 +41,23 @@ export function ConnectionsPane() {
       setDraft(conn);
     } catch (e) {
       showToast('未找到', 'error');
+    }
+  };
+
+  const handleDuplicate = async (dbId: string) => {
+    try {
+      const conn = await api.getConnection(dbId);
+      const dup: DbConnectionConfig = {
+        ...conn,
+        dbId: conn.dbId + '-copy',
+        createdAt: '',
+        updatedAt: '',
+      };
+      setCurrent(null);
+      setDraft(dup);
+      showToast('已加载为草稿，修改后点保存');
+    } catch (e) {
+      showToast('未找到原连接', 'error');
     }
   };
 
@@ -104,7 +125,17 @@ export function ConnectionsPane() {
       <aside className="card sidebar" data-anim-delay="0">
         <h2>连接列表</h2>
         <button className="new-btn" onClick={handleNew}>+ 新建连接</button>
-        <ConnectionList list={list} active={current?.dbId} onSelect={handleSelect} />
+        <div className="sidebar-toolbar">
+          <button className="toolbar-btn" onClick={() => setImportOpen(true)} title="导入连接（.exp / .json）">
+            ⇧ 导入
+          </button>
+          {list.length > 0 && (
+            <button className="toolbar-btn" onClick={() => setExportOpen(true)} title="导出选中连接">
+              ⇩ 导出
+            </button>
+          )}
+        </div>
+        <ConnectionList list={list} active={current?.dbId} onSelect={handleSelect} onDuplicate={handleDuplicate} onRetest={retest} />
       </aside>
 
       <main className="card" data-anim-delay="60">
@@ -122,6 +153,14 @@ export function ConnectionsPane() {
           <Empty icon="⬅" title="从左侧选择或新建连接" hint="所有配置以加密二进制存于 OS keyring" />
         )}
       </main>
+
+      {exportOpen && <ExportModal list={list} onClose={() => setExportOpen(false)} />}
+      {importOpen && (
+        <ImportModal
+          onClose={() => setImportOpen(false)}
+          onImported={reload}
+        />
+      )}
     </>
   );
 }

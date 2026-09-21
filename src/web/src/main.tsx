@@ -8,6 +8,7 @@ import './styles/password.css';
 import './styles/overlay.css';
 import './styles/filter.css';
 import './styles/markdown.css';
+import './styles/export.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('root element not found');
