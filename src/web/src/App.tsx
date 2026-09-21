@@ -1,5 +1,4 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import { Tabs } from './components/Tabs.js';
 import { Header } from './components/Header.js';
 import { Toast } from './components/Toast.js';
 import { Modal } from './components/Modal.js';
@@ -22,8 +21,7 @@ export function App(): ReactElement {
 
   return (
     <div className="app">
-      <Header version={version} />
-      <Tabs active={activeTab} onChange={setActiveTab} />
+      <Header version={version} activeTab={activeTab} onSwitchTab={setActiveTab} />
       <div className="layout">
         {activeTab === 'connections' ? <ConnectionsPane /> : <UsagePane />}
       </div>

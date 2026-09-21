@@ -8,7 +8,47 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 28px;
+  gap: 16px;
+}
+
+.header-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  backdrop-filter: blur(20px);
+}
+
+.header-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.header-tab svg { display: block; flex-shrink: 0; }
+
+.header-tab:hover {
+  background: rgba(124, 58, 237, 0.08);
+  color: var(--primary);
+}
+
+.header-tab.active {
+  background: var(--primary-grad);
+  color: white;
+  box-shadow: 0 2px 6px -2px rgba(37, 99, 235, 0.4);
 }
 
 .brand {
@@ -98,7 +138,7 @@
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 24px;
-  height: calc(100vh - 180px);
+  height: calc(100vh - 110px);
   min-height: 480px;
 }
 
