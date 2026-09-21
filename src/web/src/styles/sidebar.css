@@ -7,6 +7,33 @@
   margin: 0 0 12px;
 }
 
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.sidebar-header {
+  flex-shrink: 0;
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 24px 24px;
+  min-height: 0;
+}
+
+.sidebar-content .list {
+  margin: 0;
+}
+
+.sidebar-content .empty-list {
+  margin: 0;
+}
+
 .list {
   display: flex;
   flex-direction: column;

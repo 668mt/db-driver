@@ -98,24 +98,28 @@ export function UsagePane() {
   return (
     <>
       <aside className="card sidebar" data-anim-delay="0">
-        <h2>用法列表</h2>
-        <div className="filter-bar">
-          <label>dbId</label>
-          <select value={filterDbId} onChange={(e) => setFilterDbId(e.target.value)}>
-            <option value="">全部库</option>
-            {knownDbIds.map((id) => <option key={id} value={id}>{id}</option>)}
-          </select>
+        <div className="sidebar-header">
+          <h2>用法列表</h2>
+          <div className="filter-bar">
+            <label>dbId</label>
+            <select value={filterDbId} onChange={(e) => setFilterDbId(e.target.value)}>
+              <option value="">全部库</option>
+              {knownDbIds.map((id) => <option key={id} value={id}>{id}</option>)}
+            </select>
+          </div>
+          <div className="search-bar">
+            <input
+              type="search"
+              placeholder="搜索内容（不区分大小写）"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <button className="new-btn" onClick={handleNew}>+ 新增用法</button>
         </div>
-        <div className="search-bar">
-          <input
-            type="search"
-            placeholder="搜索内容（不区分大小写）"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="sidebar-content">
+          <UsageList list={list} active={current?.index} filterDesc={filterDbId} onSelect={handleSelect} />
         </div>
-        <button className="new-btn" onClick={handleNew}>+ 新增用法</button>
-        <UsageList list={list} active={current?.index} filterDesc={filterDbId} onSelect={handleSelect} />
       </aside>
 
       <main className="card" data-anim-delay="60">

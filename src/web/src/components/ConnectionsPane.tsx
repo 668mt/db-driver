@@ -123,19 +123,23 @@ export function ConnectionsPane() {
   return (
     <>
       <aside className="card sidebar" data-anim-delay="0">
-        <h2>连接列表</h2>
-        <button className="new-btn" onClick={handleNew}>+ 新建连接</button>
-        <div className="sidebar-toolbar">
-          <button className="toolbar-btn" onClick={() => setImportOpen(true)} title="导入连接（.exp / .json）">
-            ⇧ 导入
-          </button>
-          {list.length > 0 && (
-            <button className="toolbar-btn" onClick={() => setExportOpen(true)} title="导出选中连接">
-              ⇩ 导出
+        <div className="sidebar-header">
+          <h2>连接列表</h2>
+          <button className="new-btn" onClick={handleNew}>+ 新建连接</button>
+          <div className="sidebar-toolbar">
+            <button className="toolbar-btn" onClick={() => setImportOpen(true)} title="导入连接（.exp / .json）">
+              ⇧ 导入
             </button>
-          )}
+            {list.length > 0 && (
+              <button className="toolbar-btn" onClick={() => setExportOpen(true)} title="导出选中连接">
+                ⇩ 导出
+              </button>
+            )}
+          </div>
         </div>
-        <ConnectionList list={list} active={current?.dbId} onSelect={handleSelect} onDuplicate={handleDuplicate} onRetest={retest} />
+        <div className="sidebar-content">
+          <ConnectionList list={list} active={current?.dbId} onSelect={handleSelect} onDuplicate={handleDuplicate} onRetest={retest} />
+        </div>
       </aside>
 
       <main className="card" data-anim-delay="60">
