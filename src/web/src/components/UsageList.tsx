@@ -14,17 +14,17 @@ export function UsageList({ list, active, filterDesc, onSelect }: Props) {
   return (
     <div className="list">
       {list.map((u) => {
-        const firstLine = u.content.split('\n')[0];
-        const preview = firstLine.length > 80 ? firstLine.slice(0, 80) + '…' : firstLine;
+        const firstLine = u.content.split('\n')[0].trim();
+        const tooltip = firstLine.length > 200 ? firstLine.slice(0, 200) + '…' : firstLine;
         return (
           <div
             key={u.index}
             className={'list-item' + (active === u.index ? ' active' : '')}
+            title={tooltip || undefined}
             onClick={() => onSelect(u)}
           >
             <div className="list-item-title">[{u.index}] {u.title}</div>
             <div className="list-item-meta">{u.dbId} · {u.addedAt}</div>
-            <div className="list-item-desc">{preview}</div>
           </div>
         );
       })}
