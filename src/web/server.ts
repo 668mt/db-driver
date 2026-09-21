@@ -267,7 +267,9 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
   if (req.method === 'GET' && url.pathname === '/api/usage') {
     const dbId = url.searchParams.get('dbId') ?? undefined;
     const search = url.searchParams.get('search') ?? undefined;
-    jsonResponse(res, 200, listUsage(dbId, search));
+    const limit = parseInt(url.searchParams.get('limit') ?? '0', 10) || undefined;
+    const offset = parseInt(url.searchParams.get('offset') ?? '0', 10);
+    jsonResponse(res, 200, listUsage(dbId, search, limit, offset));
     return;
   }
 

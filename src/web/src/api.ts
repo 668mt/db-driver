@@ -35,10 +35,17 @@ export const api = {
       body: JSON.stringify(conn),
     });
   },
-  listUsage(dbId?: string, search?: string): Promise<UsageEntry[]> {
+  listUsage(
+    dbId?: string,
+    search?: string,
+    limit?: number,
+    offset?: number
+  ): Promise<{ total: number; entries: UsageEntry[] }> {
     const params: string[] = [];
     if (dbId) params.push(`dbId=${encodeURIComponent(dbId)}`);
     if (search) params.push(`search=${encodeURIComponent(search)}`);
+    if (limit && limit > 0) params.push(`limit=${limit}`);
+    if (offset && offset > 0) params.push(`offset=${offset}`);
     const q = params.length ? '?' + params.join('&') : '';
     return jsonFetch(`/api/usage${q}`);
   },
