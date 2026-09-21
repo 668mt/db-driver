@@ -22,6 +22,7 @@ import { runExport } from './commands/export.js';
 import { runImport } from './commands/import.js';
 import {
   runUsageClear,
+  runUsageDetail,
   runUsageEdit,
   runUsageList,
   runUsageRemove,
@@ -271,12 +272,25 @@ const usageCmd = program
 
 usageCmd
   .command('list')
-  .description('列出用法（按 dbId 排序；--dbId / --search 过滤）')
+  .description('列出用法（默认只显示标题；--dbId / --search 过滤；--limit 限制条数）')
   .option('--dbId <id>', '只显示该 dbId 的用法')
-  .option('--search <keyword>', '关键词搜索（dbId / addedAt / content 不区分大小写）')
+  .option('--search <keyword>', '关键词搜索（dbId / title / content 不区分大小写）')
+  .option('--limit <n>', '最多显示多少条（不传=全部）', (v) => parseInt(v, 10))
   .option('--json', '以 JSON 格式输出', false)
-  .action(async (opts: { dbId?: string; search?: string; json: boolean }) => {
-    await runUsageList({ dbId: opts.dbId, search: opts.search, json: !!opts.json });
+  .action(
+    async (opts: { dbId?: string; search?: string; limit?: number; json: boolean }) => {
+      await runUsageList({ dbId: opts.dbId, search: opts.search, limit: opts.limit, json: !!opts.json });
+    }
+  );
+
+usageCmd
+  .command('detail <index>')
+  .description('查看指定序号的用法完整内容（Markdown）')
+  .option('--json', '以 JSON 格式输出', false)
+  .action(async (indexStr: string, opts: { json: boolean }) => {
+    const index = parseInt(indexStr, 10);
+    if (Number.isNaN(index)) throw new Error(`序号必须是整数: ${indexStr}`);
+    await runUsageDetail(index, { json: !!opts.json });
   });
 
 usageCmd
@@ -387,8 +401,10 @@ SQL 执行:
   $ db-driver import backup.exp --passphrase 'xxx' --replace   # 替换现有同 dbId
 
 用法笔记 (明文 Markdown，按 dbId 绑定):
-  $ db-driver usage                                       # 列出所有用法
-  $ db-driver usage list --dbId my-app                    # 查某个库的用法
+  $ db-driver usage list                                  # 列出（默认只显示标题 + 首行预览）
+  $ db-driver usage list --dbId my-app --limit 20        # 查某个库 + 限制条数
+  $ db-driver usage list --search "用户"                  # 关键词搜索
+  $ db-driver usage detail 3                              # 查看第 3 条完整 Markdown
   $ db-driver usage save --dbId my-app --title "..." --content "..."   # 追加一条
   $ db-driver usage save --dbId my-app --title "..." --content-file ./note.md  # 从文件读
   $ db-driver usage save --dbId my-app --title "..." --content-file -            # 从 stdin 读

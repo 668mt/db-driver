@@ -58,7 +58,12 @@ function getDb(): Database.Database {
   return db;
 }
 
-export function listUsage(dbId?: string, keyword?: string): UsageEntry[] {
+export function listUsage(
+  dbId?: string,
+  keyword?: string,
+  limit?: number,
+  offset: number = 0
+): { total: number; entries: UsageEntry[] } {
   const db = getDb();
   const conds: string[] = [];
   const params: unknown[] = [];
@@ -72,10 +77,20 @@ export function listUsage(dbId?: string, keyword?: string): UsageEntry[] {
     params.push(k, k, k);
   }
   const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+  const totalRow = db.prepare(
+    `SELECT COUNT(*) AS c FROM usage_entries ${where}`
+  ).get(...params) as { c: number };
+  const total = totalRow.c;
+  const pageParams = [...params];
+  let limitClause = '';
+  if (limit && limit > 0) {
+    limitClause = `LIMIT ? OFFSET ?`;
+    pageParams.push(limit, offset);
+  }
   const rows = db.prepare(
-    `SELECT id, added_at, db_id, title, content FROM usage_entries ${where} ORDER BY db_id ASC, title ASC, id ASC`
-  ).all(...params) as Row[];
-  return rows.map(rowToEntry);
+    `SELECT id, added_at, db_id, title, content FROM usage_entries ${where} ORDER BY id DESC ${limitClause}`
+  ).all(...pageParams) as Row[];
+  return { total, entries: rows.map(rowToEntry) };
 }
 
 export function addUsage(title: string, content: string, dbId: string): UsageEntry {
@@ -109,6 +124,12 @@ export function clearUsage(dbId?: string): number {
   const params = dbId ? [dbId] : [];
   const result = db.prepare(sql).run(...params);
   return Number(result.changes);
+}
+
+export function getUsage(index: number): UsageEntry | null {
+  const db = getDb();
+  const row = db.prepare(`SELECT id, added_at, db_id, title, content FROM usage_entries WHERE id = ?`).get(index) as Row | undefined;
+  return row ? rowToEntry(row) : null;
 }
 
 export function removeUsage(index: number): UsageEntry | null {
