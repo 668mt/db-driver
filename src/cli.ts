@@ -221,8 +221,8 @@ program
 
 program
   .command('export <file>')
-  .description('加密导出所有连接到文件（passphrase 保护，跨机器可恢复）')
-  .requiredOption('--passphrase <pwd>', '加密口令（至少 8 位）')
+  .description('导出所有连接到文件（passphrase 留空 = 明文 JSON；填了 ≥ 8 位 = 加密文件）')
+  .option('--passphrase <pwd>', '加密口令（留空 = 不加密；填了至少 8 位 = 加密）', '')
   .option('--no-include-passwords', '脱敏导出（密码置空，便于共享模板）')
   .option('--force', '覆盖已存在文件', false)
   .option('--json', '以 JSON 格式输出', false)

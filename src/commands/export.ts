@@ -18,8 +18,8 @@ interface ExportPayload {
 }
 
 export async function runExport(file: string, options: ExportOptions): Promise<void> {
-  if (!options.passphrase || options.passphrase.length < 8) {
-    throw new Error('--passphrase 至少 8 位（用于加密导出文件）');
+  if (options.passphrase && options.passphrase.length < 8) {
+    throw new Error('--passphrase 至少 8 位（留空 = 不加密；填了才加密文件）');
   }
   if (!options.force && existsSync(file)) {
     throw new Error(`文件已存在: ${file}\n加 --force 覆盖`);
