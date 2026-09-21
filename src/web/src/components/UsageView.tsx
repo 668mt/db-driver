@@ -28,7 +28,7 @@ export function UsageView({ entry, onEdit, onDelete, onClose }: Props) {
       </div>
 
       <div className="usage-view-meta">
-        <span className="usage-view-dbId">{entry.dbId}</span>
+        <span className="usage-view-dbId">{entry.dbIds.join(', ')}</span>
         <span className="usage-view-time">{entry.addedAt}</span>
       </div>
       <h3 className="usage-view-title">{entry.title}</h3>

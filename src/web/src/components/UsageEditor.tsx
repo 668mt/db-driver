@@ -4,7 +4,7 @@ import type { UsageEntry } from '../types.js';
 interface Props {
   entry: UsageEntry | null;
   knownDbIds: string[];
-  onSave: (title: string, content: string, dbId: string) => void;
+  onSave: (title: string, content: string, dbIds: string[]) => void;
   onCancel: () => void;
   saveBtnRef: RefObject<HTMLButtonElement>;
 }
@@ -13,15 +13,17 @@ export function UsageEditor({ entry, knownDbIds, onSave, onCancel, saveBtnRef }:
   const isEdit = entry !== null;
   const title = isEdit ? `编辑用法 [${entry.index}]` : '新增用法';
   const mode = isEdit ? '编辑中' : '新增';
+  const initialDbIds = entry?.dbIds ?? [];
 
   const handleClick = () => {
     const root = saveBtnRef.current?.closest('.card');
     if (!root) return;
     const titleEl = root.querySelector<HTMLInputElement>('#usage-title');
     const contentEl = root.querySelector<HTMLTextAreaElement>('#usage-content');
-    const dbIdEl = root.querySelector<HTMLSelectElement>('#usage-dbId');
-    if (!titleEl || !contentEl || !dbIdEl) return;
-    onSave(titleEl.value.trim(), contentEl.value.trim(), dbIdEl.value);
+    if (!titleEl || !contentEl) return;
+    const checked = root.querySelectorAll<HTMLInputElement>('.dbId-multi-checkbox:checked');
+    const dbIds = Array.from(checked).map((el) => el.value);
+    onSave(titleEl.value.trim(), contentEl.value.trim(), dbIds);
   };
 
   return (
@@ -33,11 +35,27 @@ export function UsageEditor({ entry, knownDbIds, onSave, onCancel, saveBtnRef }:
 
       <div className="form-grid">
         <div className="field full">
-          <label>dbId <span className="req">*</span></label>
-          <select id="usage-dbId" defaultValue={entry?.dbId ?? ''}>
-            <option value="">-- 选择 dbId --</option>
-            {knownDbIds.map((id) => <option key={id} value={id}>{id}</option>)}
-          </select>
+          <label>
+            绑定的 dbId <span className="req">*</span>
+            <span className="opt">（可多选，逗号分隔；同一套笔记可同时关联多套环境）</span>
+          </label>
+          <div className="dbId-multi">
+            {knownDbIds.length === 0 ? (
+              <div className="dbId-multi-empty">暂无可选 dbId，请先在"连接"页添加连接</div>
+            ) : (
+              knownDbIds.map((id) => (
+                <label key={id} className="dbId-multi-item">
+                  <input
+                    type="checkbox"
+                    className="dbId-multi-checkbox"
+                    value={id}
+                    defaultChecked={initialDbIds.includes(id)}
+                  />
+                  {id}
+                </label>
+              ))
+            )}
+          </div>
         </div>
         <div className="field full">
           <label>标题 <span className="req">*</span></label>

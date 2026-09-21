@@ -210,3 +210,60 @@ button.ghost:hover {
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+.dbId-multi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  background: var(--input-bg);
+  min-height: 44px;
+}
+
+.dbId-multi-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  font-size: 13px;
+  font-family: 'SF Mono', Consolas, Monaco, monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.dbId-multi-item:hover {
+  border-color: var(--primary);
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.dbId-multi-item:has(.dbId-multi-checkbox:checked) {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.dbId-multi-checkbox {
+  width: 14px !important;
+  height: 14px;
+  margin: 0 !important;
+  padding: 0;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.dbId-multi-empty {
+  padding: 4px 8px;
+  color: var(--muted);
+  font-size: 13px;
+}

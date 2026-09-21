@@ -5,6 +5,8 @@ import { showToast } from '../toast-bus.js';
 import { UsageList } from './UsageList.js';
 import { UsageView } from './UsageView.js';
 import { UsageEditor } from './UsageEditor.js';
+import { UsageExportModal } from './UsageExportModal.js';
+import { UsageImportModal } from './UsageImportModal.js';
 import { Empty } from './Empty.js';
 import type { UsageEntry } from '../types.js';
 
@@ -14,9 +16,16 @@ export function UsagePane() {
   const [current, setCurrent] = useState<UsageEntry | null>(null);
   const [editing, setEditing] = useState(false);
   const [knownDbIds, setKnownDbIds] = useState<string[]>([]);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const saveBtnRef = useRef<HTMLButtonElement>(null);
 
-  const { list, reload } = useUsages(filterDbId, search, true, current !== null);
+  const { list, total, hasMore, loadMore, reload } = useUsages(
+    filterDbId,
+    search,
+    true,
+    current !== null
+  );
 
   useEffect(() => {
     const connIds: string[] = [];
@@ -28,7 +37,7 @@ export function UsagePane() {
       })
       .catch(() => [])
       .finally(() => {
-        const usageIds = list.map((u) => u.dbId);
+        const usageIds = list.flatMap((u) => u.dbIds);
         const set = new Set([...connIds, ...usageIds]);
         setKnownDbIds(Array.from(set));
       });
@@ -53,18 +62,18 @@ export function UsagePane() {
     setEditing(false);
   };
 
-  const handleSave = async (title: string, content: string, dbId: string) => {
+  const handleSave = async (title: string, content: string, dbIds: string[]) => {
     if (saveBtnRef.current) {
       saveBtnRef.current.disabled = true;
       const orig = saveBtnRef.current.textContent ?? '保存';
       saveBtnRef.current.innerHTML = '<span class="spinner"></span>保存中...';
       try {
-        if (!dbId) { showToast('请选择 dbId', 'error'); return; }
+        if (!dbIds || dbIds.length === 0) { showToast('请至少选择一个 dbId', 'error'); return; }
         if (!title) { showToast('标题不能为空', 'error'); return; }
         if (!content) { showToast('笔记内容不能为空', 'error'); return; }
         const saved = current
-          ? await api.updateUsage(current.index, title, content, dbId)
-          : await api.saveUsage(title, content, dbId);
+          ? await api.updateUsage(current.index, title, content, dbIds)
+          : await api.saveUsage(title, content, dbIds);
         setCurrent(saved);
         setEditing(false);
         showToast('✓ 已保存');
@@ -115,10 +124,38 @@ export function UsagePane() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <button className="new-btn" onClick={handleNew}>+ 新增用法</button>
+          <button className="new-btn" onClick={handleNew} style={{ display: 'none' }}>+ 新增用法</button>
+          <div className="sidebar-action-bar">
+            <button className="action-btn primary" onClick={handleNew} title="新增用法">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              新增
+            </button>
+            <button className="action-btn" onClick={() => setImportOpen(true)} title="从 JSON 备份导入笔记">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </button>
+            <button
+              className="action-btn"
+              onClick={() => setExportOpen(true)}
+              disabled={list.length === 0}
+              title="导出选中笔记为 JSON"
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+          </div>
         </div>
         <div className="sidebar-content">
-          <UsageList list={list} active={current?.index} filterDesc={filterDbId} onSelect={handleSelect} />
+          <UsageList list={list} total={total} hasMore={hasMore} onLoadMore={loadMore} active={current?.index} filterDesc={filterDbId} onSelect={handleSelect} />
         </div>
       </aside>
 
@@ -145,6 +182,9 @@ export function UsagePane() {
           <Empty icon="⬅" title="从左侧选择或新增用法" hint="SQL 用法以明文 Markdown 存储，便于人工查看和编辑" />
         )}
       </main>
+
+      {exportOpen && <UsageExportModal list={list} onClose={() => setExportOpen(false)} />}
+      {importOpen && <UsageImportModal onClose={() => setImportOpen(false)} onImported={reload} />}
     </>
   );
 }

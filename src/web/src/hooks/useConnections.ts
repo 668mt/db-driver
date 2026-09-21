@@ -107,6 +107,17 @@ export function useConnections(): {
     await runTests([conn]);
   };
 
+  const retestByConfig = async (conn: DbConnectionConfig) => {
+    const dbId = conn.dbId;
+    if (!dbId) return;
+    setList((prev) => {
+      if (prev.some((p) => p.dbId === dbId)) return prev;
+      return [...prev, { ...conn, testStatus: 'testing', testError: undefined }];
+    });
+    testedRef.current.add(dbId);
+    await runTests([conn]);
+  };
+
   useEffect(() => {
     reload();
     const id = setInterval(reload, POLL_MS);
