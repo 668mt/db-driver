@@ -101,31 +101,44 @@ export function checkSqlPermission(
   dbType: DbType = 'mysql'
 ): SqlAction {
   const action = detectSqlAction(sql, dbType);
+  const permSummary = `SELECT=${permissions.dmlQuery?'ON':'OFF'} UPDATE=${permissions.dmlUpdate?'ON':'OFF'} DELETE=${permissions.dmlDelete?'ON':'OFF'} DDL=${permissions.ddl?'ON':'OFF'}`;
   switch (action) {
     case 'query':
       if (!permissions.dmlQuery) {
-        throw new SqlPermissionError('DML 查询 (SELECT) 已被禁用', action);
+        throw new SqlPermissionError(
+          `DML 查询 (SELECT) 已被禁用（当前权限: ${permSummary}）`,
+          action
+        );
       }
       break;
     case 'update':
       if (!permissions.dmlUpdate) {
-        throw new SqlPermissionError('DML 更新 (INSERT/UPDATE) 已被禁用', action);
+        throw new SqlPermissionError(
+          `DML 更新 (INSERT/UPDATE) 已被禁用（当前权限: ${permSummary}）`,
+          action
+        );
       }
       break;
     case 'delete':
       if (!permissions.dmlDelete) {
-        throw new SqlPermissionError('DML 删除 (DELETE) 已被禁用', action);
+        throw new SqlPermissionError(
+          `DML 删除 (DELETE) 已被禁用（当前权限: ${permSummary}）`,
+          action
+        );
       }
       break;
     case 'ddl':
       if (!permissions.ddl) {
-        throw new SqlPermissionError('DDL 语句已被禁用', action);
+        throw new SqlPermissionError(
+          `DDL 语句已被禁用（当前权限: ${permSummary}）`,
+          action
+        );
       }
       break;
     case 'dangerous':
       if (!permissions.ddl) {
         throw new SqlPermissionError(
-          '危险语句 (CALL/LOAD DATA/PREPARE 等) 需要开启 DDL 权限',
+          `危险语句 (CALL/LOAD DATA/PREPARE 等) 需要开启 DDL 权限（当前权限: ${permSummary}）`,
           action
         );
       }
