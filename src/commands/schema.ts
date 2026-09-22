@@ -9,6 +9,7 @@ export interface SchemaOptions {
   limit?: number;
   offset: number;
   json: boolean;
+  showPartitions?: boolean;
 }
 
 export async function runSchema(dbId: string, options: SchemaOptions): Promise<void> {
@@ -20,7 +21,7 @@ export async function runSchema(dbId: string, options: SchemaOptions): Promise<v
   const driver = await acquireDriver(conn);
   try {
     if (options.table) {
-      await showTableDetail(driver, options.table, options.schema, options.json);
+      await showTableDetail(driver, options.table, options.schema, options);
     } else {
       await showTableList(driver, conn.database, options);
     }
@@ -35,49 +36,67 @@ async function showTableList(
   options: SchemaOptions
 ): Promise<void> {
   const limit = options.limit ?? 50;
-  const tables = await driver.listTables({
+  const offset = options.offset ?? 0;
+  const { tables, total } = await driver.listTables({
     schema: options.schema,
     search: options.search,
     limit,
-    offset: options.offset,
+    offset,
   });
 
   if (options.json) {
-    console.log(JSON.stringify({ database, count: tables.length, tables }, null, 2));
+    console.log(
+      JSON.stringify({ database, total, shown: tables.length, offset, limit, tables }, null, 2)
+    );
     return;
   }
 
-  if (tables.length === 0) {
+  if (tables.length === 0 && offset === 0) {
     console.log(`数据库 ${database} 中没有表${options.search ? `（匹配 "${options.search}"）` : ''}`);
     return;
   }
 
+  if (tables.length === 0) {
+    console.log(`(offset=${offset} 已超出，共 ${total} 张表)`);
+    return;
+  }
+
   const nameWidth = Math.max(4, ...tables.map((t) => t.tableName.length));
-  console.log(`\n📋 数据库 ${database} — ${tables.length} 张表 (offset=${options.offset}, limit=${limit})\n`);
+  const start = offset + 1;
+  const end = offset + tables.length;
+  console.log(
+    `\n📋 数据库 ${database} — ${total} 张表（${start}-${end}/${total}, offset=${offset}, limit=${limit}）\n`
+  );
   console.log('Table'.padEnd(nameWidth + 2) + 'Comment');
   console.log('-'.repeat(Math.min(80, nameWidth + 2 + 40)));
   for (const t of tables) {
     const comment = t.tableComment || '';
     console.log(t.tableName.padEnd(nameWidth + 2) + comment);
   }
-  console.log(`\n用法:`);
-  console.log(`  db-driver schema ${database === '' ? '<dbId>' : '<dbId>'} --table <name>   # 查看单表字段`);
-  console.log(`  db-driver schema ${database === '' ? '<dbId>' : '<dbId>'} --search user   # 按表名过滤`);
-  console.log(`  db-driver schema ${database === '' ? '<dbId>' : '<dbId>'} --limit 200 --offset 0   # 分页`);
+  const nextOffset = end < total ? offset + limit : null;
+  console.log(`\n操作:`);
+  if (nextOffset !== null) {
+    console.log(`  还有 ${total - end} 张未显示 → db-driver schema <dbId> --offset ${nextOffset}`);
+  }
+  if (offset > 0) {
+    console.log(`  回到第一页 → db-driver schema <dbId> --offset 0`);
+  }
+  console.log(`  查看单表 → db-driver schema <dbId> --table <name>`);
+  console.log(`  按名过滤 → db-driver schema <dbId> --search <kw>`);
 }
 
 async function showTableDetail(
   driver: DbDriver,
   tableName: string,
   schema: string | undefined,
-  json: boolean
+  options: SchemaOptions
 ): Promise<void> {
   const table = await driver.getTable(tableName, schema);
   if (!table) {
     throw new Error(`表不存在: ${tableName}`);
   }
 
-  if (json) {
+  if (options.json) {
     console.log(JSON.stringify(table, null, 2));
     return;
   }
@@ -134,5 +153,25 @@ async function showTableDetail(
     console.log(`\n加 --json 看完整结构（含 COMMENT / 复合索引列顺序）`);
   } else {
     console.log(`\n(无索引)`);
+  }
+
+  if (table.partitions && table.partitions.length > 0) {
+    if (options.showPartitions) {
+      console.log(`\n🧩 分区 (${table.partitions.length})\n`);
+      const partHeader = ['Name'.padEnd(32), 'Description'.padEnd(20), 'Rows'.padEnd(12), 'Data (B)'];
+      console.log(partHeader.join(' '));
+      console.log('-'.repeat(80));
+      for (const p of table.partitions) {
+        const line = [
+          p.partitionName.padEnd(32),
+          p.partitionDescription.padEnd(20),
+          String(p.tableRows).padEnd(12),
+          String(p.dataLength),
+        ];
+        console.log(line.join(' '));
+      }
+    } else {
+      console.log(`\n🧩 分区: ${table.partitions.length} 个（加 --show-partitions 查看）`);
+    }
   }
 }

@@ -47,11 +47,19 @@ export interface TableIndex {
   comment: string;
 }
 
+export interface TablePartition {
+  partitionName: string;
+  partitionDescription: string;
+  tableRows: number;
+  dataLength: number;
+}
+
 export interface SchemaTable {
   tableName: string;
   tableComment: string;
   columns: SchemaColumn[];
   indexes?: TableIndex[];
+  partitions?: TablePartition[];
 }
 
 export interface QueryResult {

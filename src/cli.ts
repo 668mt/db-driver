@@ -156,17 +156,32 @@ program
   .option('--schema <name>', 'PostgreSQL 临时切换 schema（覆盖配置中的默认 schema）')
   .option('--limit <n>', '最多列出多少张表', (v) => parseInt(v, 10))
   .option('--offset <n>', '表列表起始偏移', (v) => parseInt(v, 10), 0)
+  .option('--show-partitions', '在 --table 详情里输出分区子表（默认只显示个数）', false)
   .option('--json', '以 JSON 格式输出', false)
-  .action(async (dbId: string, opts: { table?: string; search?: string; schema?: string; limit?: number; offset: number; json: boolean }) => {
-    await runSchema(dbId, {
-      table: opts.table,
-      search: opts.search,
-      schema: opts.schema,
-      limit: opts.limit,
-      offset: opts.offset ?? 0,
-      json: !!opts.json,
-    });
-  });
+  .action(
+    async (
+      dbId: string,
+      opts: {
+        table?: string;
+        search?: string;
+        schema?: string;
+        limit?: number;
+        offset: number;
+        showPartitions: boolean;
+        json: boolean;
+      }
+    ) => {
+      await runSchema(dbId, {
+        table: opts.table,
+        search: opts.search,
+        schema: opts.schema,
+        limit: opts.limit,
+        offset: opts.offset ?? 0,
+        showPartitions: !!opts.showPartitions,
+        json: !!opts.json,
+      });
+    }
+  );
 
 program
   .command('execute <dbId> <sql>')
@@ -273,13 +288,20 @@ const usageCmd = program
 
 usageCmd
   .command('list')
-  .description('列出用法（默认只显示标题；--dbId / --search 过滤；--limit 限制条数）')
+  .description('列出用法（默认只显示标题；--dbId / --search 过滤；--limit + --offset 翻页）')
   .option('--dbId <ids>', '只显示该 dbId 的用法（一个笔记可关联多个 dbId，逗号分隔 OR 匹配）')
   .option('--search <keyword>', '关键词搜索（dbIds / title / content 不区分大小写）')
   .option('--limit <n>', '最多显示多少条（不传=全部）', (v) => parseInt(v, 10))
+  .option('--offset <n>', '起始偏移（与 --limit 配合翻页）', (v) => parseInt(v, 10), 0)
   .option('--json', '以 JSON 格式输出', false)
   .action(
-    async (opts: { dbId?: string; search?: string; limit?: number; json: boolean }) => {
+    async (opts: {
+      dbId?: string;
+      search?: string;
+      limit?: number;
+      offset: number;
+      json: boolean;
+    }) => {
       const dbIds = opts.dbId
         ? Array.from(
             new Set(
@@ -290,7 +312,13 @@ usageCmd
             )
           )
         : undefined;
-      await runUsageList({ dbIds, search: opts.search, limit: opts.limit, json: !!opts.json });
+      await runUsageList({
+        dbIds,
+        search: opts.search,
+        limit: opts.limit,
+        offset: opts.offset ?? 0,
+        json: !!opts.json,
+      });
     }
   );
 
@@ -461,7 +489,9 @@ program.addHelpText(
 Schema:
   $ db-driver schema <dbId>                     # 列表名（轻量）
   $ db-driver schema <dbId> --table <name>      # 看字段
+  $ db-driver schema <dbId> --table <name> --show-partitions  # 同时输出分区子表
   $ db-driver schema <dbId> --search user       # 按表名过滤
+  $ db-driver schema <dbId> --limit 10 --offset 10  # 翻页：第 11-20 张
   $ db-driver schema <dbId> --limit 200 --json  # 分页 + JSON
 
 SQL 执行:
@@ -488,6 +518,7 @@ SQL 执行:
 用法笔记 (明文 Markdown，按 dbId 绑定):
   $ db-driver usage list                                  # 列出（默认只显示标题 + 首行预览）
   $ db-driver usage list --dbId my-app --limit 20        # 查某个库 + 限制条数
+  $ db-driver usage list --dbId my-app --limit 20 --offset 20  # 翻页：第 21-40 条
   $ db-driver usage list --search "用户"                  # 关键词搜索
   $ db-driver usage detail 3                              # 查看第 3 条完整 Markdown
   $ db-driver usage save --dbId a,b --title "..." --content "..."   # 多 dbId 逗号分隔

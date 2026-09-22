@@ -10,7 +10,12 @@ export interface DbDriver {
   testConnection(): Promise<void>;
   close(): Promise<void>;
   query(sql: string): Promise<QueryResult>;
-  listTables(options?: { schema?: string; search?: string; limit?: number; offset?: number }): Promise<TableInfo[]>;
+  listTables(options?: {
+    schema?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ tables: TableInfo[]; total: number }>;
   getTable(name: string, schema?: string): Promise<SchemaTable | null>;
   getSchema(database?: string, schema?: string): Promise<SchemaTable[]>;
 }

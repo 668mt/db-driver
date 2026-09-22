@@ -60,7 +60,7 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
       search?: string;
       limit?: number;
       offset?: number;
-    }): Promise<TableInfo[]> {
+    }): Promise<{ tables: TableInfo[]; total: number }> {
       await ensureConnected();
       const targetSchema = activeSchema(options?.schema);
       const where: string[] = ['n.nspname = $1', "c.relkind = 'r'"];
@@ -82,11 +82,20 @@ export function createPostgresDriver(config: DbConnectionConfig): DbDriver {
         sql += ` LIMIT ${limit} OFFSET ${offset}`;
       }
 
+      const countResult = await client.query(
+        `SELECT COUNT(*) AS c
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE ${where.join(' AND ')}`,
+        params
+      );
+      const total = parseInt(String(countResult.rows[0].c), 10);
       const result = await client.query(sql, params);
-      return result.rows.map<TableInfo>((r) => ({
+      const tables = result.rows.map<TableInfo>((r) => ({
         tableName: r.tableName as string,
         tableComment: (r.tableComment as string) ?? '',
       }));
+      return { tables, total };
     },
 
     async getTable(name: string, schema?: string): Promise<SchemaTable | null> {

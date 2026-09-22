@@ -1,5 +1,5 @@
 import mysql from 'mysql2/promise';
-import type { DbConnectionConfig, QueryResult, SchemaTable, TableIndex, TableInfo } from './types.js';
+import type { DbConnectionConfig, QueryResult, SchemaTable, TableIndex, TableInfo, TablePartition } from './types.js';
 import { mapColumns, type DbDriver } from './index.js';
 
 export function createMysqlDriver(config: DbConnectionConfig): DbDriver {
@@ -66,7 +66,7 @@ export function createMysqlDriver(config: DbConnectionConfig): DbDriver {
       search?: string;
       limit?: number;
       offset?: number;
-    }): Promise<TableInfo[]> {
+    }): Promise<{ tables: TableInfo[]; total: number }> {
       const targetDb = config.database;
       const search = options?.search;
       const limit = options?.limit;
@@ -89,11 +89,17 @@ export function createMysqlDriver(config: DbConnectionConfig): DbDriver {
 
       const conn = await pool.getConnection();
       try {
+        const [countRows] = await conn.query(
+          `SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE ${where.join(' AND ')}`,
+          params
+        );
+        const total = (countRows as Array<{ c: number }>)[0].c;
         const [rows] = await conn.query(sql, params);
-        return (rows as Array<Record<string, unknown>>).map<TableInfo>((r) => ({
+        const tables = (rows as Array<Record<string, unknown>>).map<TableInfo>((r) => ({
           tableName: r.tableName as string,
           tableComment: (r.tableComment as string) ?? '',
         }));
+        return { tables, total };
       } finally {
         conn.release();
       }
@@ -139,6 +145,17 @@ export function createMysqlDriver(config: DbConnectionConfig): DbDriver {
           [config.database, name]
         );
 
+        const [partitionRows] = await conn.query(
+          `SELECT PARTITION_NAME AS partitionName,
+                  PARTITION_DESCRIPTION AS partitionDescription,
+                  TABLE_ROWS AS tableRows,
+                  DATA_LENGTH AS dataLength
+           FROM information_schema.PARTITIONS
+           WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND PARTITION_NAME IS NOT NULL
+           ORDER BY PARTITION_ORDINAL_POSITION`,
+          [config.database, name]
+        );
+
         const columns = mapColumns(columnRows as Array<Record<string, unknown>>);
         const indexes = (indexRows as Array<Record<string, unknown>>).map<TableIndex>((r) => ({
           indexName: r.indexName as string,
@@ -149,12 +166,19 @@ export function createMysqlDriver(config: DbConnectionConfig): DbDriver {
           indexType: (r.indexType as string) ?? '',
           comment: (r.comment as string) ?? '',
         }));
+        const partitions = (partitionRows as Array<Record<string, unknown>>).map<TablePartition>((r) => ({
+          partitionName: r.partitionName as string,
+          partitionDescription: r.partitionDescription as string,
+          tableRows: Number(r.tableRows) || 0,
+          dataLength: Number(r.dataLength) || 0,
+        }));
 
         return {
           tableName: tables[0].tableName as string,
           tableComment: (tables[0].tableComment as string) ?? '',
           columns,
           indexes,
+          partitions: partitions.length > 0 ? partitions : undefined,
         };
       } finally {
         conn.release();
