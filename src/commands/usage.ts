@@ -14,6 +14,7 @@ export interface UsageListOptions {
   dbIds?: string[];
   search?: string;
   limit?: number;
+  offset?: number;
   json: boolean;
 }
 
@@ -58,16 +59,33 @@ function formatDbIds(ids: string[]): string {
 
 export async function runUsageList(options: UsageListOptions): Promise<void> {
   const dbIdFilter = options.dbIds && options.dbIds.length > 0 ? options.dbIds[0] : undefined;
-  const { total, entries } = listUsage(dbIdFilter, options.search, options.limit);
+  const offset = options.offset ?? 0;
+  const { total, entries } = listUsage(dbIdFilter, options.search, options.limit, offset);
   const filters: string[] = [];
   if (options.dbIds && options.dbIds.length > 0) filters.push(`dbId=${options.dbIds.join('|')}`);
   if (options.search) filters.push(`search="${options.search}"`);
   const filterDesc = filters.length > 0 ? ` (${filters.join(', ')})` : '';
-  const shownDesc = options.limit && total > entries.length ? ` 显示 ${entries.length} / ${total}` : '';
+  const limit = options.limit;
+  const start = entries.length > 0 ? offset + 1 : 0;
+  const end = offset + entries.length;
+  const shownDesc =
+    limit && total > entries.length
+      ? ` 显示 ${start}-${end}/${total} (offset=${offset}, limit=${limit})`
+      : limit
+        ? ` 显示 ${start}-${end}/${total} (offset=${offset}, limit=${limit})`
+        : '';
   if (options.json) {
     console.log(
       JSON.stringify(
-        { total, shown: entries.length, dbIds: options.dbIds ?? null, entries, file: usageFilePath() },
+        {
+          total,
+          shown: entries.length,
+          offset,
+          limit: limit ?? null,
+          dbIds: options.dbIds ?? null,
+          entries,
+          file: usageFilePath(),
+        },
         null,
         2
       )
@@ -88,7 +106,7 @@ export async function runUsageList(options: UsageListOptions): Promise<void> {
       closeConfigDb();
       return;
     }
-    console.log(`(当前过滤条件下无匹配的用法)`);
+    console.log(`(offset=${offset} 已超出，共 ${total} 条)`);
     closeConfigDb();
     return;
   }
@@ -104,11 +122,15 @@ export async function runUsageList(options: UsageListOptions): Promise<void> {
   console.log('操作:');
   console.log(`  db-driver usage detail <index>                            # 查看某条完整内容`);
   console.log(`  db-driver usage save --dbId a,b --title "..." --content "..."  # 多 dbId 逗号分隔`);
-  console.log(`  db-driver usage list --dbId mukeyuan-dev --search <kw> --limit 50 # 查 + 搜索 + 限制`);
+  console.log(`  db-driver usage list --dbId mukeyuan-dev --search <kw> --limit 50 --offset 0  # 翻页`);
   console.log(`  db-driver usage rm <index>                                 # 删除指定序号`);
   console.log(`  db-driver usage clear --dbId mukeyuan-dev --yes            # 清空某库（不加 --dbId 清全部）`);
-  if (options.limit && total > entries.length) {
-    console.log(`\n提示: 还有 ${total - entries.length} 条未显示，加 --limit ${total} 看全部`);
+  if (limit && total > entries.length) {
+    const nextOffset = end;
+    console.log(`\n提示: 还有 ${total - end} 条未显示 → db-driver usage list --offset ${nextOffset}`);
+  }
+  if (offset > 0) {
+    console.log(`  回到第一页 → db-driver usage list --offset 0`);
   }
   closeConfigDb();
 }
