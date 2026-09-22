@@ -61,7 +61,7 @@ db-driver config \
 ```
 
 - 必填：`--dbId --type --host --user --password --database`。
-- 缺参数会报错并提示「用 --web 打开网页配置，或传齐以上参数命令行保存」。
+- 缺参数会报错并提示「用 `db-driver console` 打开网页配置，或传齐以上参数命令行保存」。
 - `--port` 不传则按类型自动填（mysql=3306、postgres=5432）。
 - `--schema` 不传则 PG 默认 `public`；MySQL 不使用此字段。
 - 默认权限：`dmlQuery=true`，其余 `false`（与网页默认值一致）。
@@ -198,7 +198,7 @@ db-driver usage clear --dbId my-app --yes                # 清空某个库（不
 
 db-driver 每个连接在配置阶段绑定 4 个权限位（`dmlQuery` / `dmlUpdate` / `dmlDelete` / `ddl`），**所有 SQL 执行前按权限位拦截**。AI Agent 必须遵守：
 
-1. **禁止自行提升权限** —— 当一条 SQL 因为权限被拒时，**绝对不要**通过重新 `db-driver config` / `db-driver config --web` 自己打开新权限。如果真的需要，让用户去打开。
+1. **禁止自行提升权限** —— 当一条 SQL 因为权限被拒时，**绝对不要**通过重新 `db-driver config` 自己打开新权限。如果真的需要，让用户去打开（或跑 `db-driver console` 网页配置）。
 2. **禁止绕过检查** —— 不要尝试注释断字（`U/**/PDATE`）、MySQL 条件注释（`/*! UPDATE */`）、存储过程 `CALL`、动态 SQL（`PREPARE`/`EXECUTE`）等绕过技巧——它们都会被 SQL 解析器拒绝。
 3. **提权必须用户明确同意** —— 只有用户**明确**说"开 INSERT 权限"、"开 DDL"等指令时，AI 才能给出新的 `db-driver config` 命令让用户执行。**不要假设、不要替用户决定**。
 4. **失败立即停下并报告** —— 权限不足、SQL 被拒、表不存在、解析失败……所有失败**立即停止当前任务**，把完整错误原样反馈给用户，不要尝试第二条路径蒙混过关。

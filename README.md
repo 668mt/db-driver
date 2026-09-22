@@ -129,7 +129,7 @@ db-driver config \
 ```
 
 必填：`--dbId --type --host --user --password --database`
-可选：`--port`（按类型默认）、权限开关、`--test`、`--web`（直接打开网页）
+可选：`--port`（按类型默认）、权限开关、`--test`、`--schema`（PG）、`--description`
 
 ### PostgreSQL 多 schema 支持
 
@@ -149,13 +149,13 @@ db-driver schema my-app --schema tenant_1
 db-driver schema my-app --schema tenant_1 --table orders
 ```
 
-### 方式 B：网页（适合人）
+### 方式 B：网页控制台（适合人）
 
 ```bash
-db-driver config --web
+db-driver console
 ```
 
-浏览器打开 `http://127.0.0.1:<随机端口>`，可视化增删改、勾选权限、保存。关闭浏览器 CLI 自动退出。
+浏览器打开 `http://127.0.0.1:7842`，可视化增删改连接配置、勾选权限、查看表结构、编辑 SQL 用法笔记、测试连接等。Ctrl+C 退出。
 
 ### 配置存储格式（加密）
 
@@ -164,7 +164,7 @@ db-driver config --web
 - 不存在明文 JSON，密码字段不被机器单独抽取
 - 配置文件不公开具体路径
 - 系统重装 / 换用户后 keyring 中的 key 会丢失，配置需重新 config（设计如此：密钥不跨机器迁移）
-- 没有手动编辑入口；统一通过 `db-driver config` 或 `db-driver config --web` 修改
+- 没有手动编辑入口；统一通过 `db-driver config`（CLI）或 `db-driver console`（网页）修改
 
 ```json
 // 配置内容示例（实际是加密二进制）—— 仅供理解结构
@@ -204,7 +204,7 @@ db-driver config --web
 |------|--------|
 | `db-driver console [--port N]` | 打开网页控制台（同时管理连接配置 + SQL 用法笔记，默认 7842 端口） |
 | `db-driver config --dbId x --type ...` | 命令行快速保存连接（适合脚本） |
-| `db-driver config --web` | 打开浏览器可视化配置（适合人） |
+| `db-driver console` | 打开网页控制台（同时管理连接配置 + SQL 用法笔记） |
 | `db-driver list` | 列出所有 dbId |
 | `db-driver show <dbId>` | 看连接详情（密码默认隐藏，--reveal-password 显示明文） |
 | `db-driver test <dbId>` | 测试连通性 |
