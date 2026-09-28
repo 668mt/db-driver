@@ -48,6 +48,22 @@ Letting an AI agent write raw SQL is risky:
 - [Release](#release)
 - [License](#license)
 
+## ⚡ One-Liner Skill Install (No `db-driver` Required)
+
+Want your AI agent to learn the db-driver workflow right away, before committing to a full install? Drop the skill into `~/.agents/skills/db-driver/` with a single command — **no global `db-driver` install required**:
+
+```bash
+npx -y db-driver@latest install
+```
+
+Good for:
+
+- 🤖 An AI agent's first appearance on a user's machine — let local agent tools (Claude Code, IDE agents, …) discover the commands immediately
+- 🧪 Previewing `SKILL.md` before deciding to install for real
+- 🚀 CI / scripted environments where you don't want `npm install -g` polluting global state
+
+> After running this, agents will recognize the `db-driver ...` commands. Install the full CLI with `npm install -g db-driver` whenever you actually need to run SQL.
+
 ## 30-Second Quickstart
 
 ```bash
@@ -59,7 +75,7 @@ db-driver config --dbId my-app \
   --type mysql --host 127.0.0.1 --port 3306 \
   --user reader --password secret --database mydb
 
-# 3. Install the skill for AI agents
+# 3. Install the skill for AI agents (skip if you already ran the npx command above)
 db-driver install
 
 # 4. AI can now query

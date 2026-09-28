@@ -48,6 +48,22 @@
 - [发布](#发布)
 - [License](#license)
 
+## ⚡ 一键安装 skill（无需预装 db-driver）
+
+只想让 AI Agent 立刻学会 db-driver 的用法、还没正式安装？一行命令把 skill 装到 `~/.agents/skills/db-driver/`，**不需要预装 db-driver 本体**：
+
+```bash
+npx -y db-driver@latest install
+```
+
+适合：
+
+- 🤖 AI Agent 在用户机器上首次出现，临时把 skill 喂给本地的 Agent 工具（Claude Code、IDE agent 等）
+- 🧪 想先看 `SKILL.md` 内容再决定是否正式安装
+- 🚀 CI / 脚本环境里不想 `npm install -g` 污染全局
+
+> 跑完这条命令后，Agent 就能识别 `db-driver ...` 命令；需要真正执行 SQL 时再 `npm install -g db-driver` 即可。
+
 ## 30 秒上手
 
 ```bash
@@ -59,7 +75,7 @@ db-driver config --dbId my-app \
   --type mysql --host 127.0.0.1 --port 3306 \
   --user reader --password secret --database mydb
 
-# 3. 让 AI 自动装上 skill
+# 3. 让 AI 自动装上 skill（也可省略——上面的 npx 命令已装过）
 db-driver install
 
 # 4. AI 开始查询
