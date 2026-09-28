@@ -27,22 +27,24 @@
 ```
 db-driver/
 ├── src/
-│   ├── cli.ts                # commander 入口；注册所有子命令
+│   ├── cli.ts                # commander 入口；注册所有子命令 + addHelpText('after')
 │   ├── commands/             # 每个子命令一个文件
 │   │   ├── config.ts         # 配置（Web + CLI 双模式）
+│   │   ├── console.ts        # 启动本地 Web 控制台（React UI）
 │   │   ├── list.ts           # 列出连接
 │   │   ├── show.ts           # 连接详情
 │   │   ├── test.ts           # 测试连接
 │   │   ├── remove.ts         # 删除连接
-│   │   ├── schema.ts         # 列出表 / 看字段
+│   │   ├── schema.ts         # 列出表 / 看字段 / 分区
 │   │   ├── sample.ts         # 样本数据（含 formatTable 共用）
 │   │   ├── count.ts          # 行数
-│   │   ├── execute.ts        # 执行 SQL
-│   │   ├── explain.ts        # EXPLAIN 执行计划
-│   │   ├── export.ts         # 加密导出配置
-│   │   ├── import.ts         # 加密导入配置
-│   │   ├── usage.ts          # 用法笔记（list/save/edit/clear/rm）
-│   │   └── install.ts        # 安装 skill
+│   │   ├── execute.ts        # 执行 SQL（AST 权限校验）
+│   │   ├── explain.ts        # EXPLAIN / EXPLAIN ANALYZE
+│   │   ├── export.ts         # 加密导出连接
+│   │   ├── import.ts         # 加密导入连接
+│   │   ├── usage.ts          # 用法笔记（list/detail/save/update/bind/rm/clear）
+│   │   ├── install.ts        # 把 skill 同步到 ~/.agents/skills/db-driver/
+│   │   └── update.ts         # 从 npm 自更新（拒绝源码 link 模式）
 │   ├── db/
 │   │   ├── index.ts          # DbDriver 接口 + createDriver 工厂
 │   │   ├── mysql.ts          # MySQL 实现（mysql2/promise pool）
@@ -52,20 +54,29 @@ db-driver/
 │   │   └── types.ts          # DbConnectionConfig / QueryResult / SchemaTable 等
 │   ├── store/
 │   │   ├── configStore.ts    # 配置的加密读写（含 evictDriver 联动）
-│   │   └── usageStore.ts     # 用法笔记的 Markdown 读写（明文，按用户要求）
+│   │   └── usageStore.ts     # 用法笔记的 SQLite 读写（明文，按用户要求不加密）
 │   ├── utils/
 │   │   ├── paths.ts          # CONFIG_DIR / SKILL_DEST / USAGE_FILE 等路径
 │   │   ├── crypto.ts         # AES-256-GCM 加密（keyring 用 + passphrase 用）
 │   │   ├── ident.ts          # quoteIdent / quoteQualifiedTable
 │   │   └── errors.ts         # MySQL errno / PG sqlState → 中文友好提示
-│   └── web/
+│   └── web/                  # db-driver console 的本地网页（React + Vite）
 │       ├── server.ts         # console 子命令的本地 HTTP 服务（连接 + 用法 API）
-│       └── public/index.html # 控制台 UI（连接 / 用法 tab，无外部依赖，纯 HTML+JS）
+│       ├── index.html        # Vite 入口
+│       ├── public/           # 静态资源（favicon 等）
+│       └── src/              # React 组件、hooks、API、样式
+│           ├── App.tsx
+│           ├── main.tsx
+│           ├── api.ts
+│           ├── components/   # ConnectionsPane / UsagePane / ...
+│           ├── hooks/        # useConnections / useUsages
+│           └── styles/
 ├── skill/
 │   └── SKILL.md              # 安装到 ~/.agents/skills/db-driver/ 的入口
 ├── package.json
 ├── tsconfig.json
-├── README.md
+├── vite.config.ts
+├── README.md / README.en.md  # 中文 / 英文双 README
 └── AGENTS.md                 # ← 你正在看的文件
 ```
 
@@ -185,15 +196,15 @@ db-driver/
 1. 新建 `src/commands/<name>.ts`，导出 `run<Name>(args, options)`
 2. 在 `src/cli.ts` 用 `program.command('<name> ...').action(...)` 注册
 3. 在 `src/cli.ts` 的 `addHelpText('after')` 加示例
-4. **同步**：`skill/SKILL.md` + `README.md`
+4. **同步**：`skill/SKILL.md` + `README.md` + `README.en.md`
 5. 加 build → 跑 `db-driver <name> --help` 验证
 
 ### 5.3 改动既有命令
 
 1. 修改 `src/commands/<name>.ts`
-2. **同步**：`skill/SKILL.md`（Agent 通过 skill 知道用法）+ `README.md`（人通过 README 知道用法）+ `cli.ts` 的帮助文本
+2. **同步**：`skill/SKILL.md`（Agent 通过 skill 知道用法）+ `README.md` + `README.en.md`（人通过 README 知道用法）+ `cli.ts` 的帮助文本
 3. 如果改了 SQL 语义或权限映射，检查 `src/db/permissions.ts` 是否需要同步
-4. 如果改了连接结构，检查 `src/web/public/index.html` 是否要同步
+4. 如果改了连接结构或 Web UI，检查 `src/web/src/`（React 组件）和 `src/web/server.ts` 是否要同步
 
 ---
 
@@ -202,7 +213,7 @@ db-driver/
 修改代码后，按以下顺序自检：
 
 ```bash
-cd D:/work/idea_workspace/ai-studio/db-driver
+cd D:/work/idea_workspace/db-driver
 
 # 1. 编译
 npm run build
@@ -261,7 +272,7 @@ npm whoami                         # 验证登录
 ### 9.2 每次发布的标准流程
 
 ```bash
-cd D:/work/idea_workspace/ai-studio/db-driver
+cd D:/work/idea_workspace/db-driver
 
 # 1. 拉最新代码 + 装依赖
 git pull

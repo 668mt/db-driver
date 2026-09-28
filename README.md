@@ -1,8 +1,18 @@
 # db-driver
 
-> 让 AI Agent 安全使用 MySQL / PostgreSQL 的 CLI 工具 — 通过 `~/.agents/skills/db-driver` skill 一键安装。
->
-> npm 包 `db-driver` · CLI 命令 `db-driver` · 本地配置加密存储
+> **让 AI Agent 安全使用 MySQL / PostgreSQL 的 CLI 工具。**
+> 通过 `node-sql-parser` 做 AST 级权限校验，配 `~/.agents/skills/db-driver/` 一键安装到所有 Agent。
+
+[![npm version](https://img.shields.io/npm/v/db-driver.svg)](https://www.npmjs.com/package/db-driver)
+[![npm downloads](https://img.shields.io/npm/dm/db-driver.svg)](https://www.npmjs.com/package/db-driver)
+[![license](https://img.shields.io/npm/l/db-driver.svg)](https://github.com/668mt/db-driver)
+[![node](https://img.shields.io/node/v/db-driver.svg)](https://www.npmjs.com/package/db-driver)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
+[![GitHub stars](https://img.shields.io/github/stars/668mt/db-driver.svg)](https://github.com/668mt/db-driver/stargazers)
+
+[English](./README.en.md) · [简体中文](#)
+
+---
 
 ## 为什么需要它
 
@@ -12,7 +22,31 @@
 - 存储过程 `CALL proc()` 可以做任何事
 - 一句写错的 SQL 改坏了生产数据
 
-`db-driver` 用 **AST 解析器**（`node-sql-parser`）做 SQL 权限校验，配 **JSON 输出** 给 AI Agent 用，最少上下文、最高可控。
+`db-driver` 把 SQL 喂给 **AST 解析器**（`node-sql-parser`），按权限位拦截，配 **JSON 输出 / 加密存储 / Agent skill** 给 AI Agent 用——**最少上下文、最高可控、失败安全**。
+
+## 特性
+
+- 🛡️ **AST 级权限校验** — 4 个权限位（query / update / delete / ddl），解析失败一律拒绝
+- 🔐 **加密存储** — AES-256-GCM 二进制 + master key 由 OS keyring 托管（Windows DPAPI / macOS Keychain / Linux Secret Service）
+- 🤖 **AI Agent 原生** — `db-driver install` 把 skill 装到 `~/.agents/skills/db-driver/`，所有 Agent 自动学会用法
+- 🗃️ **MySQL & PostgreSQL** — PG 多 schema、MySQL 分区表、`EXPLAIN` / `EXPLAIN ANALYZE`
+- 💻 **双模式配置** — 网页控制台（React UI）或 CLI flags（适合脚本）
+- 📝 **用法笔记** — 按 `dbId` 绑定 SQL 习惯，明文 SQLite 存储（不含密码，可分享）
+- 🔁 **备份与迁移** — 加密导出（PBKDF2 / AES-256-GCM），跨机器可恢复
+
+## 📑 目录
+
+- [30 秒上手](#30-秒上手)
+- [给 AI Agent 用：skill 工作流](#给-ai-agent-用skill-工作流)
+- [权限模型](#权限模型)
+- [配置详解](#配置详解)
+- [命令一览](#命令一览)
+- [错误信息本地化](#错误信息本地化)
+- [故障排查](#故障排查)
+- [架构](#架构)
+- [开发](#开发)
+- [发布](#发布)
+- [License](#license)
 
 ## 30 秒上手
 
@@ -20,7 +54,7 @@
 # 1. 安装
 npm install -g db-driver
 
-# 2. 给 AI 配置一个 DB 连接（只读账号更安全）
+# 2. 给 AI 配置一个 DB 连接（建议用只读账号）
 db-driver config --dbId my-app \
   --type mysql --host 127.0.0.1 --port 3306 \
   --user reader --password secret --database mydb
@@ -47,9 +81,10 @@ db-driver execute my-app "SELECT * FROM users LIMIT 5" --json
 6. 需要改表结构？→ `db-driver execute <dbId> "<DDL>"`（需要 `ddl` 权限）
 
 **给 AI 的最佳实践：**
+
 - **永远加 `--json`** — Agent 解析 JSON 比解析表格稳
 - **永远带 `--limit`** — 默认 50 行，防爆炸
-- **不确定时先 schema** — 别瞎写列名/表名
+- **不确定时先 schema** — 别瞎写列名 / 表名
 - **写操作前先 count** — 确认影响范围
 
 ## 权限模型
@@ -82,19 +117,19 @@ AST 类型 → 映射到 4 个权限位之一
 
 | 攻击 | 拦截方式 |
 |------|----------|
-| `UPDATE users SET ...` | AST 识别为 update + dmlUpdate 未开 |
+| `UPDATE users SET ...` | AST 识别为 update + `dmlUpdate` 未开 |
 | `U/**/PDATE users ...` | 注释断字 → parser 失败 → 拒绝 |
 | `/*! UPDATE */ users ...` | MySQL 条件注释 → parser 失败 → 拒绝 |
-| `CALL dangerous_proc()` | AST 识别为 call → 要求 ddl 权限 |
-| `LOAD DATA INFILE ...` | AST 识别为 load → 要求 ddl 权限 |
-| `PREPARE stmt FROM '...'` | AST 识别为 prepare → 要求 ddl 权限 |
+| `CALL dangerous_proc()` | AST 识别为 call → 要求 `ddl` 权限 |
+| `LOAD DATA INFILE ...` | AST 识别为 load → 要求 `ddl` 权限 |
+| `PREPARE stmt FROM '...'` | AST 识别为 prepare → 要求 `ddl` 权限 |
 | 多语句 `SELECT 1; DROP TABLE x` | parser 返回多条语句 → 拒绝 |
 | 语法错误 / 解析失败 | 一律 dangerous → 拒绝 |
 
 ### 挡不住什么（必须靠「最小权限 DB 账号」兜底）
 
 - 数据库触发器：SELECT 自动触发 INSERT/UPDATE
-- 用 `root` / `superuser` 账号 → 任何工具都拦不住直接 psql/mysql 连
+- 用 `root` / `superuser` 账号 → 任何工具都拦不住直接 `psql` / `mysql` 连
 - AI 改其它通道（直接 psql、SSH、Web 面板）
 
 **👉 终极建议：用最小权限的 DB 账号配置 db-driver**
@@ -166,7 +201,7 @@ db-driver console
 - 系统重装 / 换用户后 keyring 中的 key 会丢失，配置需重新 config（设计如此：密钥不跨机器迁移）
 - 没有手动编辑入口；统一通过 `db-driver config`（CLI）或 `db-driver console`（网页）修改
 
-```json
+```jsonc
 // 配置内容示例（实际是加密二进制）—— 仅供理解结构
 {
   "version": 1,
@@ -179,8 +214,8 @@ db-driver console
       "user": "reader",
       "password": "...",
       "database": "mydb",
-      "schema": null,
-      "description": null,
+      "schema": null,           // PG 专用，可选
+      "description": null,      // 连接描述，可选
       "permissions": {
         "dmlQuery": true,
         "dmlUpdate": false,
@@ -194,34 +229,31 @@ db-driver console
 }
 ```
 
-`schema`（PG 专用，可选）、`description`（连接描述，可选）是向后兼容的扩展字段，旧配置文件读取时缺省等同于未设置。
-
 ## 命令一览
 
 ### 连接管理
 
-| 命令 | 何时用 |
-|------|--------|
-| `db-driver console [--port N]` | 打开网页控制台（同时管理连接配置 + SQL 用法笔记，默认 7842 端口） |
+| 命令 | 说明 |
+|------|------|
+| `db-driver console [--port N]` | 打开网页控制台（连接 + 用法，默认 7842 端口） |
 | `db-driver config --dbId x --type ...` | 命令行快速保存连接（适合脚本） |
-| `db-driver console` | 打开网页控制台（同时管理连接配置 + SQL 用法笔记） |
 | `db-driver list` | 列出所有 dbId |
-| `db-driver show <dbId>` | 看连接详情（密码默认隐藏，--reveal-password 显示明文） |
+| `db-driver show <dbId>` | 看连接详情（密码默认隐藏，`--reveal-password` 显示明文） |
 | `db-driver test <dbId>` | 测试连通性 |
 | `db-driver remove <dbId> --yes` | 删除连接 |
-| `db-driver export <file> [--passphrase <pwd>]` | 导出所有连接到文件（passphrase 留空 = 明文 JSON；≥8 位 = 加密 .exp） |
-| `db-driver import <file> [--passphrase <pwd>] [--replace]` | 从文件导入连接（同名 dbId 默认跳过，--replace 覆盖） |
+| `db-driver export <file> [--passphrase <pwd>]` | 导出所有连接到文件（passphrase 留空 = 明文 JSON；≥8 位 = 加密 `.exp`） |
+| `db-driver import <file> [--passphrase <pwd>] [--replace]` | 从文件导入连接（同名 dbId 默认跳过，`--replace` 覆盖） |
 
 ### 数据浏览
 
-| 命令 | 何时用 |
-|------|--------|
+| 命令 | 说明 |
+|------|------|
 | `db-driver schema <dbId>` | 列表名（第一步必走） |
 | `db-driver schema <dbId> --table <t>` | 看字段 + 索引 + 注释 |
 | `db-driver schema <dbId> --table <t> --show-partitions` | 同时输出 MySQL 分区子表信息 |
 | `db-driver schema <dbId> --search <p>` | 按表名模糊过滤 |
 | `db-driver schema <dbId> --schema <s>` | PG 临时切换 schema（覆盖配置默认） |
-| `db-driver schema <dbId> --limit N --offset M` | 列表分页（total/offset/limit 都在输出里） |
+| `db-driver schema <dbId> --limit N --offset M` | 列表分页（total / offset / limit 都在输出里） |
 | `db-driver sample <dbId> <table>` | 样本数据（默认 10 行） |
 | `db-driver count <dbId> <table>` | 行数 |
 | `db-driver execute <dbId> "<SQL>" --json` | 跑查询（带 JSON 输出） |
@@ -230,8 +262,8 @@ db-driver console
 
 ### 用法笔记（明文 Markdown，一条笔记可关联多个 dbId）
 
-| 命令 | 何时用 |
-|------|--------|
+| 命令 | 说明 |
+|------|------|
 | `db-driver usage list` | 列出（默认只显示标题 + 首行预览） |
 | `db-driver usage list --dbId a,b` | 过滤（逗号分隔，OR 匹配） |
 | `db-driver usage list --search <kw>` | 关键词搜索（title / dbIds / content） |
@@ -242,16 +274,16 @@ db-driver console
 | `db-driver usage save --dbId a --title "..." --content-file -` | 从 stdin 读 |
 | `db-driver usage update <index> --title/--content/--dbIds` | 更新（AI 友好，字段可省略） |
 | `db-driver usage update <index> --content-file ./new.md` | 从文件读新内容 |
-| `db-driver usage bind --add prd` | 批量给所有笔记加 prd 关联 |
-| `db-driver usage bind --remove staging` | 批量给所有笔记删 staging 关联 |
+| `db-driver usage bind --add prd` | 批量给所有笔记加 `prd` 关联 |
+| `db-driver usage bind --remove staging` | 批量给所有笔记删 `staging` 关联 |
 | `db-driver usage bind --entries 1,2,3 --add a` | 只给指定序号加 |
 | `db-driver usage rm <index>` | 删除 |
 | `db-driver usage clear [--dbId <id>] --yes` | 清空（可指定 dbId） |
 
 ### 安装 / 自更新
 
-| 命令 | 何时用 |
-|------|--------|
+| 命令 | 说明 |
+|------|------|
 | `db-driver install` | 把 skill 装到 `~/.agents/skills/db-driver/` |
 | `db-driver update` | 从 npm 自更新（拒绝源码 link 模式） |
 | `db-driver update --check` | 仅检查是否有新版 |
@@ -260,7 +292,7 @@ db-driver console
 
 - `--json` — 所有查询类命令都支持，AI 解析用
 - `--limit N` — `execute` / `sample` 限制返回行数（默认 50 / 10）；`schema` / `usage list` 列表分页
-- `--offset M` — `schema` / `usage list` 列表分页（与 --limit 配合翻页）
+- `--offset M` — `schema` / `usage list` 列表分页（与 `--limit` 配合翻页）
 - `--where <expr>` — `sample` / `count` 附加 WHERE 条件
 
 ## 错误信息本地化
@@ -284,13 +316,13 @@ db-driver console
 | 2002 | 无法连接到数据库主机（连接被拒绝） |
 | 2003 | 无法连接到数据库主机（端口不可达） |
 | 2013 | 连接丢失（网络问题或查询超时） |
-| ECONNREFUSED | 连接被拒绝：检查 host/port 是否正确，数据库服务是否启动 |
+| ECONNREFUSED | 连接被拒绝：检查 host / port 是否正确，数据库服务是否启动 |
 
 ### PostgreSQL SQLSTATE
 
 | SQLSTATE | 翻译 |
 |----------|------|
-| 08000 / 08001 / 08003 / 08006 | 连接异常/失败 |
+| 08000 / 08001 / 08003 / 08006 | 连接异常 / 失败 |
 | 23502 | 非空约束违反 |
 | 23503 | 外键约束违反 |
 | 23505 | 唯一键冲突（重复插入） |
@@ -311,14 +343,14 @@ db-driver console
 | 连接不存在 | `db-driver list` 看可用 dbId |
 | 权限被拒（"已被禁用"） | `db-driver show <dbId>` 看实际权限位；错误消息附带 `SELECT=... UPDATE=... DELETE=... DDL=...`；**手动用 `db-driver config` 调整**（不要让 AI 自动调） |
 | SELECT 报权限不足但理应通过 | 错误消息会附带当前权限，确认 `dmlQuery=true`；可能 SQL 被 AST 识别成其他类型（用 `--json` + `node-sql-parser` 排查） |
-| 表/列不存在 | `db-driver schema <dbId> --search <keyword>` |
+| 表 / 列不存在 | `db-driver schema <dbId> --search <keyword>` |
 | PG schema 找不到表 | `db-driver show <dbId>` 确认 schema 字段；可用 `--schema` 临时切换 |
 | 列表太多想翻页 | `schema` / `usage list` 加 `--limit N --offset M` |
 | 想看 MySQL 分区子表 | `schema <dbId> --table <t> --show-partitions` |
-| 无法解析 SQL | 含注释断字/条件注释，已被拒绝（设计如此） |
+| 无法解析 SQL | 含注释断字 / 条件注释，已被拒绝（设计如此） |
 | 笔记想批量加 dbId | `usage bind --add <dbId>`（一次性应用到所有笔记） |
-| 笔记想单条改 dbId/title | `usage update <index> --title ... --dbIds a,b`（AI 友好，非阻塞） |
-| 进程卡住 | MySQL/PG 连接池问题；`db-driver update` 拉到最新版试试；`npm run dev:stop` 清理残留 |
+| 笔记想单条改 dbId / title | `usage update <index> --title ... --dbIds a,b`（AI 友好，非阻塞） |
+| 进程卡住 | MySQL / PG 连接池问题；`db-driver update` 拉到最新版试试；`npm run dev:stop` 清理残留 |
 
 ## AI Agent 协作红线
 
@@ -330,6 +362,45 @@ db-driver console
 - **不要直接编辑配置文件** —— 让用户自己用 `db-driver config`
 
 完整版见 `skill/SKILL.md`（AI Agent 实际加载的入口）。
+
+## 架构
+
+```
+db-driver/
+├── src/
+│   ├── cli.ts                       # commander 入口
+│   ├── commands/                    # 每个子命令一个文件
+│   │   ├── config.ts                # 配置（Web + CLI 双模式）
+│   │   ├── list/show/test/remove.ts # 连接管理
+│   │   ├── schema/sample/count.ts   # 数据浏览
+│   │   ├── execute.ts               # SQL 执行 + AST 权限校验
+│   │   ├── explain.ts               # EXPLAIN / EXPLAIN ANALYZE
+│   │   ├── export.ts / import.ts    # 加密导出导入
+│   │   ├── usage.ts                 # 用法笔记
+│   │   └── install/update.ts        # skill 安装 / npm 自更新
+│   ├── db/
+│   │   ├── index.ts                 # DbDriver 接口 + createDriver 工厂
+│   │   ├── mysql.ts                 # MySQL 实现（mysql2/promise）
+│   │   ├── postgres.ts              # PostgreSQL 实现（pg.Client）
+│   │   ├── pool.ts                  # 进程内连接池（30s TTL）
+│   │   ├── permissions.ts           # AST 解析 + 权限校验
+│   │   └── types.ts                 # DbConnectionConfig 等共享类型
+│   ├── store/
+│   │   ├── configStore.ts           # AES-256-GCM 加密连接配置
+│   │   └── usageStore.ts            # 用法笔记（明文 SQLite）
+│   ├── utils/
+│   │   ├── paths.ts                 # 配置 / skill 路径
+│   │   ├── crypto.ts                # AES-256-GCM 加解密
+│   │   ├── ident.ts                 # 表名 / 列名引用
+│   │   └── errors.ts                # 错误码中英文翻译
+│   └── web/                         # db-driver console 的本地网页（React + Vite）
+│       ├── server.ts                # 本地 HTTP 服务（连接 + 用法 API）
+│       ├── index.html
+│       └── src/                     # React 组件
+├── skill/SKILL.md                   # AI Agent 看到的入口
+├── README.md / README.en.md         # 本文件 / English version
+└── AGENTS.md                        # 架构与规范（给后续贡献者）
+```
 
 ## 开发
 
@@ -363,35 +434,16 @@ git push --follow-tags
 
 发布后用户用 `db-driver update` 升级。
 
-## 架构
+## Contributing
 
-```
-db-driver/
-├── src/
-│   ├── cli.ts                 # commander 入口
-│   ├── commands/              # 每个子命令一个文件
-│   ├── db/
-│   │   ├── mysql.ts           # MySQL 驱动 (mysql2/promise)
-│   │   ├── postgres.ts        # PostgreSQL 驱动 (pg.Client)
-│   │   ├── pool.ts            # 进程内连接池（30s TTL）
-│   │   ├── permissions.ts     # AST 解析 + 权限校验
-│   │   ├── types.ts           # DbConnectionConfig 等共享类型
-│   │   └── index.ts           # createDriver 工厂
-│   ├── store/
-│   │   ├── configStore.ts     # AES-256-GCM 加密连接配置
-│   │   └── usageStore.ts      # SQLite 存储用法笔记
-│   ├── utils/
-│   │   ├── paths.ts           # 配置 / skill 路径
-│   │   ├── crypto.ts          # AES-256-GCM 加解密
-│   │   ├── ident.ts           # 表名/列名引用
-│   │   └── errors.ts          # 错误码中文翻译
-│   └── web/                   # db-driver console 的本地网页（React + Vite）
-│       ├── server.ts          # 本地 HTTP 服务（连接 + 用法 API）
-│       └── src/               # React 组件
-├── skill/SKILL.md             # AI Agent 看到的入口
-└── AGENTS.md                  # 架构与规范
-```
+欢迎 PR / Issue：
 
-## 许可
+- 🐛 **Bug 报告**：附上 `db-driver --version`、复现命令、完整错误输出
+- 💡 **功能建议**：先在 Issue 里讨论设计，避免 PR 方向跑偏
+- 🔧 **代码提交**：改动后跑 `npm run build` + `db-driver install`，更新 README / SKILL.md / AGENTS.md
 
-MIT
+完整流程见 [AGENTS.md](./AGENTS.md)（含发布到 npm 的步骤）。
+
+## License
+
+MIT © [668mt](https://github.com/668mt) — see [`package.json`](./package.json) (`"license": "MIT"`)

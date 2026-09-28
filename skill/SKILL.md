@@ -27,7 +27,7 @@ npm install -g db-driver
 db-driver console
 ```
 
-- 会在浏览器中打开一个**控制台**（127.0.0.1 上随机端口）。
+- 会在浏览器中打开一个**控制台**（默认 `http://127.0.0.1:7842`，可用 `--port` 指定）。
 - 两个 tab：
   - **连接配置** — 增删改连接、测连接、保存
   - **用法笔记** — 增删改 SQL 用法笔记（明文 Markdown）
@@ -169,23 +169,43 @@ db-driver import backup.exp --passphrase 'MyStrongPwd!' --yes --replace
 
 文件格式：`AES-256-GCM` 加密二进制（PBKDF2 100k 迭代，passphrase 派生 key），跨机器可恢复。
 
-## 用法笔记（明文 Markdown，按 dbId 绑定）
+## 用法笔记（明文 Markdown，一条笔记可绑定多个 dbId）
 
 ```bash
-db-driver usage                                          # 列出所有用法
-db-driver usage list --dbId my-app                       # 查某个库的用法
-db-driver usage save --dbId my-app --sql "SELECT ..." --note "..."   # 追加（必填 --dbId）
-db-driver usage edit                                     # 用 $EDITOR 打开整个文件
-db-driver usage rm 3                                     # 删除第 3 条
-db-driver usage clear --dbId my-app --yes                # 清空某个库（不加 --dbId 清全部）
+# 列出 / 过滤 / 翻页
+db-driver usage list                                          # 列出（默认只显示标题 + 首行预览）
+db-driver usage list --dbId my-app                            # 按 dbId 过滤（逗号分隔 OR）
+db-driver usage list --search "用户"                          # 关键词搜索（dbIds / title / content）
+db-driver usage list --limit 20 --offset 20                   # 翻页：第 21-40 条
+db-driver usage detail 3                                      # 查看第 3 条完整 Markdown
+
+# 新增
+db-driver usage save --dbId my-app --title "..." --content "SELECT ..."
+db-driver usage save --dbId a,b --title "..." --content-file ./note.md   # 多 dbId / 从文件读
+db-driver usage save --dbId a --title "..." --content-file -              # 从 stdin 读
+
+# 更新（AI 友好，字段可省略）
+db-driver usage update 3 --content "新内容"                              # 只改正文
+db-driver usage update 3 --dbIds "a,b,c" --title "新标题"                 # 只改关联 + 标题
+db-driver usage update 3 --content-file ./new.md                         # 从文件读新内容
+
+# 批量改关联（默认作用于所有笔记；--entries 只对指定序号生效）
+db-driver usage bind --add prd
+db-driver usage bind --remove staging
+db-driver usage bind --entries 1,2,3 --add a
+
+# 删除 / 清空
+db-driver usage rm 3
+db-driver usage clear --dbId my-app --yes                  # 清某个库（不加 --dbId 清全部）
 ```
 
 - 存于 `usage.db`（**SQLite** 文件，**按用户要求不加密**——SQL 习惯公开/分享，不含密码）
-- schema: `usage_entries(id, added_at, db_id, title, content)`
-- 用 CLI `usage save/list/rm/clear` 增删改查；高级用户可用 `sqlite3` CLI 或 GUI 工具直接编辑
-- **每条用法必须绑定 dbId**（数据库连接别名），避免多库 SQL 混在一起
+- schema（多对多）：
+  - `usage_entries(id, added_at, title, content)` —— 笔记主体
+  - `usage_entry_dbs(entry_id, db_id)` —— 笔记 ↔ dbId 多对多关联
+- **每条用法必须绑定至少一个 dbId**（数据库连接别名），避免多库 SQL 混在一起
 - 加 `--json` 输出结构化数据（AI 解析用）
-- 手动编辑随时可，不会破坏文件结构（解析容错；旧格式没 dbId 的会被跳过）
+- 高级用户可用 `sqlite3` CLI 或 GUI 工具直接编辑；旧版本（一对多、单 `db_id` 字段）会自动迁移
 
 **安全机制：**
 - 源码链接（`npm link` / `git clone`）下运行会自动拒绝，提示用 `git pull && npm run build`
