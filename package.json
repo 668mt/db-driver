@@ -38,13 +38,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://gitee.com/fourstars/ai-studio.git",
-    "directory": "db-driver"
+    "url": "https://github.com/668mt/db-driver.git"
   },
   "bugs": {
-    "url": "https://gitee.com/fourstars/ai-studio/issues"
+    "url": "https://github.com/668mt/db-driver/issues"
   },
-  "homepage": "https://gitee.com/fourstars/ai-studio/blob/master/db-driver/README.md",
+  "homepage": "https://github.com/668mt/db-driver/blob/master/README.md",
   "dependencies": {
     "@napi-rs/keyring": "^2.1.0",
     "@types/better-sqlite3": "^9.6.0",
