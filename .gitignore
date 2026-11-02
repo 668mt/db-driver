@@ -7,3 +7,6 @@ dist/
 .env
 .env.local
 .idea/
+
+# 本地 npm 覆盖配置（可能含 token，禁止提交）
+.npmrc.local

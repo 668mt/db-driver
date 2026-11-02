@@ -24,6 +24,8 @@
     "release:patch": "npm version patch && npm publish",
     "release:minor": "npm version minor && npm publish",
     "release:major": "npm version major && npm publish",
+    "publish:central": "npm publish --registry=https://registry.npmjs.org/ --access public",
+    "publish:dry": "npm publish --dry-run --registry=https://registry.npmjs.org/",
     "test": "node --test --import tsx/esm test/**/*.test.ts"
   },
   "keywords": [
