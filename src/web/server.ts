@@ -10,6 +10,7 @@ import {
   deleteConnection,
   getConnection,
   listConnections,
+  setConnectionEnabled,
   upsertConnection,
 } from '../store/configStore.js';
 import { decryptWithPassphrase } from '../utils/crypto.js';
@@ -50,6 +51,7 @@ interface SavedConnectionPayload {
   user: string;
   password: string;
   database: string;
+  enabled?: boolean;
   permissions: DbPermissions;
 }
 
@@ -211,6 +213,7 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
         user: body.user,
         password: body.password,
         database: body.database,
+        enabled: body.enabled,
         permissions: {
           dmlQuery: !!body.permissions?.dmlQuery,
           dmlUpdate: !!body.permissions?.dmlUpdate,
@@ -232,6 +235,23 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
     return;
   }
 
+  if (req.method === 'POST' && /^\/api\/connections\/[^/]+\/enabled$/.test(url.pathname)) {
+    const rest = url.pathname.replace('/api/connections/', '');
+    const dbId = decodeURIComponent(rest.replace(/\/enabled$/, ''));
+    try {
+      const body = await readJson<{ enabled?: boolean }>(req);
+      const updated = setConnectionEnabled(dbId, body.enabled !== false);
+      if (!updated) {
+        jsonResponse(res, 404, { error: 'not found' });
+      } else {
+        jsonResponse(res, 200, sanitize(updated));
+      }
+    } catch (e) {
+      jsonResponse(res, 400, { error: (e as Error).message });
+    }
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/test') {
     try {
       const body = await readJson<SavedConnectionPayload>(req);
@@ -243,6 +263,7 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse): Promise<vo
         user: body.user,
         password: body.password,
         database: body.database,
+        enabled: body.enabled,
         permissions: {
           dmlQuery: !!body.permissions?.dmlQuery,
           dmlUpdate: !!body.permissions?.dmlUpdate,

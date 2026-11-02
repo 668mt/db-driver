@@ -35,10 +35,12 @@ db-driver/
 │   │   ├── show.ts           # 连接详情
 │   │   ├── test.ts           # 测试连接
 │   │   ├── remove.ts         # 删除连接
+│   │   ├── toggle.ts         # 启用 / 禁用连接
 │   │   ├── schema.ts         # 列出表 / 看字段 / 分区
 │   │   ├── sample.ts         # 样本数据（含 formatTable 共用）
 │   │   ├── count.ts          # 行数
-│   │   ├── execute.ts        # 执行 SQL（AST 权限校验）
+│   │   ├── execute.ts        # 执行 SQL（AST 权限校验，支持多条语句）
+│   │   ├── script.ts         # .sql 脚本文件批量执行（逐条权限校验）
 │   │   ├── explain.ts        # EXPLAIN / EXPLAIN ANALYZE
 │   │   ├── export.ts         # 加密导出连接
 │   │   ├── import.ts         # 加密导入连接
@@ -51,7 +53,13 @@ db-driver/
 │   │   ├── postgres.ts       # PostgreSQL 实现（pg.Client）
 │   │   ├── pool.ts           # 进程内连接池（30s TTL）
 │   │   ├── permissions.ts    # AST 解析 + 权限校验（node-sql-parser）
+│   │   ├── sqlSplit.ts       # 脚本按顶层分号拆分（保留注释，防绕过）
+│   │   ├── batch.ts          # 批量执行引擎（先全量权限预检，再逐条执行）
 │   │   └── types.ts          # DbConnectionConfig / QueryResult / SchemaTable 等
+│   ├── mcp/                  # stdio MCP server
+│   │   ├── server.ts         # MCP server + 工具注册
+│   │   ├── tools.ts          # MCP 工具实现（与 CLI 共用权限校验）
+│   │   └── scriptTool.ts     # MCP 版脚本执行工具
 │   ├── store/
 │   │   ├── configStore.ts    # 配置的加密读写（含 evictDriver 联动）
 │   │   └── usageStore.ts     # 用法笔记的 SQLite 读写（明文，按用户要求不加密）
@@ -171,6 +179,15 @@ db-driver/
 - 多语句 / 空 AST / 未知类型 → `dangerous` → 拒绝
 - 危险语句（`CALL` / `LOAD` / `PREPARE` / `EXECUTE` / `DO` / `SET`）映射到 `dangerous`，要求 `ddl` 权限
 
+### 4.3.1 连接启用开关（`enabled`）
+
+- 每个连接有 `enabled` 字段（`false` = 禁用）。字段缺失（旧配置）视为启用。
+- **所有会碰数据库的命令必须用 `getEnabledConnection(dbId)` 取连接**，禁用时直接抛错。
+  受影响命令：`schema` / `sample` / `count` / `execute` / `script` / `explain` / `test` + MCP 的所有数据访问工具。
+- `list` / `show` / `remove` / `enable` / `disable` 用 `getConnection`，不受影响。
+- 禁用**只锁数据访问**，账号密码 / 权限位全部保留；`upsertConnection` 不传 `enabled` 时保留原状态（避免编辑连接时意外打开）。
+- 禁用状态要跟着 `export` / `import` 一起走。
+
 ### 4.4 错误本地化（`errors.ts`）
 
 - 新增 DB 错误码时同步更新 `MYSQL_ERROR_MAP` / `PG_SQLSTATE_MAP`
@@ -199,7 +216,15 @@ db-driver/
 4. **同步**：`skill/SKILL.md` + `README.md` + `README.en.md`
 5. 加 build → 跑 `db-driver <name> --help` 验证
 
-### 5.3 改动既有命令
+### 5.3 批量 / 多语句约定（execute + script + MCP 通用）
+
+- **拆分**：`src/db/sqlSplit.ts` 按顶层分号切分，识别字符串、`--`/`#` 行注释、C 风格块注释、PG 的 `$$dollar$$`、MySQL 的 `DELIMITER` 指令。
+- **拆分必须保留注释原文**：若把注释剥离后再送 AST 校验，`U/**/PDATE` 这类注释断字会被当成合法 UPDATE 放行 —— 凭空造出绕过漏洞。
+- **权限校验**：`src/db/batch.ts` 对每条语句单独走 `checkSqlPermission`，整包绝不一次性放行。
+- **先全量预检再执行**：批量场景下先校验整包权限，有任何一条越权则整批拒绝、一条都不执行（避免「前几条已改库、到第 N 条才发现越权」）。
+- **失败不回滚**：已成功执行的语句不会自动回滚（MySQL DDL 本身也多为隐式提交）—— 需在文档与提示中说明。
+
+### 5.4 改动既有命令
 
 1. 修改 `src/commands/<name>.ts`
 2. **同步**：`skill/SKILL.md`（Agent 通过 skill 知道用法）+ `README.md` + `README.en.md`（人通过 README 知道用法）+ `cli.ts` 的帮助文本

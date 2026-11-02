@@ -1,4 +1,4 @@
-import { getConnection, closeConfigDb } from '../store/configStore.js';
+import { getEnabledConnection, closeConfigDb } from '../store/configStore.js';
 import { acquireDriver } from '../db/pool.js';
 import type { DbDriver } from '../db/index.js';
 
@@ -13,7 +13,7 @@ export interface SchemaOptions {
 }
 
 export async function runSchema(dbId: string, options: SchemaOptions): Promise<void> {
-  const conn = getConnection(dbId);
+  const conn = getEnabledConnection(dbId);
   if (!conn) {
     throw new Error(`数据库连接不存在: ${dbId}\n请先运行 db-driver config 配置连接`);
   }

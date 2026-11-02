@@ -1,4 +1,4 @@
-import { getConnection, closeConfigDb } from '../store/configStore.js';
+import { getEnabledConnection, closeConfigDb } from '../store/configStore.js';
 import { acquireDriver } from '../db/pool.js';
 import { checkSqlPermission, SqlPermissionError } from '../db/permissions.js';
 import { translateDbError } from '../utils/errors.js';
@@ -14,7 +14,7 @@ export async function runExplain(dbId: string, sql: string, options: ExplainOpti
     throw new Error('SQL 不能为空');
   }
 
-  const conn = getConnection(dbId);
+  const conn = getEnabledConnection(dbId);
   if (!conn) {
     throw new Error(`数据库连接不存在: ${dbId}`);
   }

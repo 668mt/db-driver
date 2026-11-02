@@ -1,9 +1,9 @@
-import { getConnection, closeConfigDb } from '../store/configStore.js';
+import { getEnabledConnection, closeConfigDb } from '../store/configStore.js';
 import { acquireDriver } from '../db/pool.js';
 import { translateDbError } from '../utils/errors.js';
 
 export async function runTest(dbId: string): Promise<void> {
-  const conn = getConnection(dbId);
+  const conn = getEnabledConnection(dbId);
   if (!conn) {
     throw new Error(`数据库连接不存在: ${dbId}`);
   }

@@ -13,6 +13,7 @@ export async function runList(options: { json: boolean }): Promise<void> {
           database: c.database,
           schema: c.schema ?? null,
           description: c.description ?? null,
+          enabled: c.enabled !== false,
           user: c.user,
           permissions: c.permissions,
           updatedAt: c.updatedAt,
@@ -39,17 +40,20 @@ export async function runList(options: { json: boolean }): Promise<void> {
     'dbId'.padEnd(dbIdWidth + 2) +
       'Type'.padEnd(typeWidth + 2) +
       'Endpoint'.padEnd(40) +
-      'Permissions'
+      'Permissions'.padEnd(12) +
+      'Status'
   );
-  console.log('-'.repeat(dbIdWidth + 2 + typeWidth + 2 + 40 + 24));
+  console.log('-'.repeat(dbIdWidth + 2 + typeWidth + 2 + 40 + 12 + 8));
   for (const c of all) {
     const endpoint = `${c.user}@${c.host}:${c.port}/${c.database}`;
     const perms = formatPerms(c.permissions);
+    const status = c.enabled === false ? '🔒 已禁用' : '✅ 启用';
     const line1 =
       c.dbId.padEnd(dbIdWidth + 2) +
       c.type.padEnd(typeWidth + 2) +
       endpoint.padEnd(40) +
-      perms;
+      perms.padEnd(12) +
+      status;
     console.log(line1);
     if (c.description) {
       console.log(`${' '.repeat(dbIdWidth + 2)}📝 ${c.description}`);

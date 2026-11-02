@@ -10,9 +10,11 @@ import { runConsole, DEFAULT_CONSOLE_PORT } from './commands/console.js';
 import { runInstall } from './commands/install.js';
 import { runSchema } from './commands/schema.js';
 import { runExecute } from './commands/execute.js';
+import { runScript } from './commands/script.js';
 import { runList } from './commands/list.js';
 import { runShow } from './commands/show.js';
 import { runTest } from './commands/test.js';
+import { runDisable, runEnable } from './commands/toggle.js';
 import { runRemove } from './commands/remove.js';
 import { runSample } from './commands/sample.js';
 import { runCount } from './commands/count.js';
@@ -29,6 +31,7 @@ import {
   runUsageSave,
   runUsageUpdate,
 } from './commands/usage.js';
+import { buildHelpExamples } from './help.js';
 import { SKILL_DEST } from './utils/paths.js';
 import { clearPool } from './db/pool.js';
 import type { DbType } from './db/types.js';
@@ -68,6 +71,7 @@ program
   .option('--database <database>', '数据库名（catalog）')
   .option('--schema <schema>', 'PostgreSQL schema 名（默认 public）')
   .option('--description <text>', '连接描述（可选，便于区分多套同形环境）')
+  .option('--disabled', '保存时直接禁用该连接（数据访问会被拒绝）', false)
   .option('--dml-query', '允许 SELECT', true)
   .option('--no-dml-query', '禁用 SELECT')
   .option('--dml-update', '允许 INSERT/UPDATE', false)
@@ -106,6 +110,7 @@ program
       database: opts.database as string,
       schema: (opts.schema as string | undefined) || undefined,
       description: (opts.description as string | undefined) || undefined,
+      enabled: opts.disabled === true ? false : undefined,
       permissions: {
         dmlQuery: opts.dmlQuery !== false,
         dmlUpdate: opts.dmlUpdate === true,
@@ -138,6 +143,22 @@ program
   .description('测试数据库连接')
   .action(async (dbId: string) => {
     await runTest(dbId);
+  });
+
+program
+  .command('enable <dbId>')
+  .description('启用一个被禁用的连接')
+  .option('--json', '以 JSON 格式输出', false)
+  .action(async (dbId: string, opts: { json: boolean }) => {
+    await runEnable(dbId, { json: !!opts.json });
+  });
+
+program
+  .command('disable <dbId>')
+  .description('禁用一个连接（任何数据访问都会被拒绝；配置与权限保留）')
+  .option('--json', '以 JSON 格式输出', false)
+  .action(async (dbId: string, opts: { json: boolean }) => {
+    await runDisable(dbId, { json: !!opts.json });
   });
 
 program
@@ -185,11 +206,52 @@ program
 
 program
   .command('execute <dbId> <sql>')
-  .description('在指定数据库上执行 SQL（单条语句）')
+  .description('在指定数据库上执行 SQL（支持多条语句，用分号分隔）')
   .option('--limit <n>', 'SELECT 最多返回多少行（默认 50）', (v) => parseInt(v, 10), 50)
+  .option('--continue-on-error', '某条语句失败后继续执行后面的语句（默认遇错即停）', false)
   .option('--json', '以 JSON 格式输出', false)
-  .action(async (dbId: string, sql: string, opts: { limit: number; json: boolean }) => {
-    await runExecute(dbId, sql, { limit: opts.limit, json: !!opts.json });
+  .action(
+    async (
+      dbId: string,
+      sql: string,
+      opts: { limit: number; continueOnError: boolean; json: boolean }
+    ) => {
+      await runExecute(dbId, sql, {
+        limit: opts.limit,
+        json: !!opts.json,
+        continueOnError: !!opts.continueOnError,
+      });
+    }
+  );
+
+program
+  .command('script <dbId> <file>')
+  .description('批量执行 .sql 脚本文件（逐条做权限校验后顺序执行）')
+  .option('--limit <n>', '每条 SELECT 最多返回多少行（默认 50）', (v) => parseInt(v, 10), 50)
+  .option('--dry-run', '只校验权限、不真正执行', false)
+  .option('--continue-on-error', '某条语句失败后继续执行后面的语句（默认遇错即停）', false)
+  .option('--json', '以 JSON 格式输出', false)
+  .action(
+    async (
+      dbId: string,
+      file: string,
+      opts: { limit: number; dryRun: boolean; continueOnError: boolean; json: boolean }
+    ) => {
+      await runScript(dbId, file, {
+        limit: opts.limit,
+        dryRun: !!opts.dryRun,
+        continueOnError: !!opts.continueOnError,
+        json: !!opts.json,
+      });
+    }
+  );
+
+program
+  .command('mcp')
+  .description('以 stdio 方式启动 MCP server（供 OpenCode / Claude 等 MCP 客户端使用）')
+  .action(async () => {
+    const { runMcpServer } = await import('./mcp/server.js');
+    await runMcpServer();
   });
 
 program
@@ -465,77 +527,7 @@ usageCmd
     await runUsageRemove(index, { json: !!opts.json });
   });
 
-program.addHelpText(
-  'after',
-  `
-连接管理:
-  $ db-driver list                              # 列出所有 dbId
-  $ db-driver list --json
-  $ db-driver show <dbId>                       # 查看连接详情
-  $ db-driver test <dbId>                       # 测试连接
-  $ db-driver remove <dbId> --yes               # 删除连接
-
-数据浏览:
-  $ db-driver sample <dbId> <table>             # 样本数据
-  $ db-driver sample <dbId> <table> --limit 5
-  $ db-driver sample <dbId> <table> --where "id > 100"
-  $ db-driver count <dbId> <table>              # 行数
-
-查询优化:
-  $ db-driver explain <dbId> "SELECT ..."       # 执行计划
-  $ db-driver explain <dbId> "SELECT ..." --json
-  $ db-driver explain <dbId> "SELECT ..." --analyze   # 真正执行并返回实际耗时
-
-Schema:
-  $ db-driver schema <dbId>                     # 列表名（轻量）
-  $ db-driver schema <dbId> --table <name>      # 看字段
-  $ db-driver schema <dbId> --table <name> --show-partitions  # 同时输出分区子表
-  $ db-driver schema <dbId> --search user       # 按表名过滤
-  $ db-driver schema <dbId> --limit 10 --offset 10  # 翻页：第 11-20 张
-  $ db-driver schema <dbId> --limit 200 --json  # 分页 + JSON
-
-SQL 执行:
-  $ db-driver execute <dbId> "SELECT ..."        # 表格输出（最多 50 行）
-  $ db-driver execute <dbId> "SELECT ..." --limit 200
-  $ db-driver execute <dbId> "SELECT ..." --json
-
-配置:
-  $ db-driver console                           # 打开网页控制台（连接 + 用法 统一管理）
-  $ db-driver config --dbId my-app --type mysql \\
-                   --host 127.0.0.1 --user root --password secret \\
-                   --database app              # 命令行直接保存一个连接
-  $ db-driver install                           # 安装 skill
-  $ db-driver update                            # 升级到最新版
-  $ db-driver update --check                    # 仅检查不升级
-  $ db-driver update 0.2.0                      # 升到指定版本
-
-备份 / 迁移:
-  $ db-driver export backup.exp --passphrase 'MyStrongPwd!'    # 加密导出
-  $ db-driver export backup.exp --passphrase 'xxx' --no-include-passwords  # 脱敏导出
-  $ db-driver import backup.exp --passphrase 'MyStrongPwd!'    # 在新机器导入
-  $ db-driver import backup.exp --passphrase 'xxx' --replace   # 替换现有同 dbId
-
-用法笔记 (明文 Markdown，按 dbId 绑定):
-  $ db-driver usage list                                  # 列出（默认只显示标题 + 首行预览）
-  $ db-driver usage list --dbId my-app --limit 20        # 查某个库 + 限制条数
-  $ db-driver usage list --dbId my-app --limit 20 --offset 20  # 翻页：第 21-40 条
-  $ db-driver usage list --search "用户"                  # 关键词搜索
-  $ db-driver usage detail 3                              # 查看第 3 条完整 Markdown
-  $ db-driver usage save --dbId a,b --title "..." --content "..."   # 多 dbId 逗号分隔
-  $ db-driver usage save --dbId a --title "..." --content-file ./note.md  # 从文件读
-  $ db-driver usage save --dbId a --title "..." --content-file -            # 从 stdin 读
-  $ db-driver usage bind --add prd                        # 给所有笔记加 prd 关联
-  $ db-driver usage bind --remove staging                 # 给所有笔记删 staging 关联
-  $ db-driver usage bind --entries 1,2 --add prd          # 只给指定笔记加
-  $ db-driver usage update 3 --content "..."              # 直接更新正文（AI 用，非阻塞）
-  $ db-driver usage update 3 --dbIds "a,b,c" --title "新标题"  # 改关联和标题（不改正文）
-  $ db-driver usage rm 3                                  # 删除第 3 条
-  $ db-driver usage clear --dbId my-app --yes             # 清空某个库
-
-Skill 安装位置: ${SKILL_DEST}
-(连接配置加密存储于 OS keyring；具体路径不公开)
-`
-);
+program.addHelpText('after', buildHelpExamples());
 
 async function shutdown(exitCode: number): Promise<never> {
   // MySQL/PG 连接池会持有 socket 不放，导致 Node 事件循环无法退出

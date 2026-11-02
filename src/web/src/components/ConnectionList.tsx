@@ -6,53 +6,81 @@ interface Props {
   onSelect: (dbId: string) => void;
   onDuplicate: (dbId: string) => void;
   onRetest: (dbId: string) => void;
+  onToggleEnabled: (dbId: string, enabled: boolean) => void;
 }
 
-export function ConnectionList({ list, active, onSelect, onDuplicate, onRetest }: Props) {
+export function ConnectionList({
+  list, active, onSelect, onDuplicate, onRetest, onToggleEnabled,
+}: Props) {
   if (list.length === 0) {
     return <div className="empty-list">还没有连接<br />点击上方 + 新建连接</div>;
   }
   return (
     <div className="list">
-      {list.map((c) => (
-        <div
-          key={c.dbId}
-          className={'list-item' + (active === c.dbId ? ' active' : '')}
-          onClick={() => onSelect(c.dbId)}
-        >
-          <div className="list-item-title">
-            <span className={'badge badge-' + c.type}>
-              {c.type === 'mysql' ? 'MySQL' : 'PG'}
-            </span>
-            <span className="list-item-dbId">{c.dbId}</span>
-            <TestStatusBadge
-              status={c.testStatus}
-              error={c.testError}
-              onRetest={(e) => {
-                e.stopPropagation();
-                onRetest(c.dbId);
-              }}
-            />
-            <button
-              type="button"
-              className="list-item-action"
-              title="复制为新连接（不保存，进入编辑）"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDuplicate(c.dbId);
-              }}
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            </button>
+      {list.map((c) => {
+        const disabled = c.enabled === false;
+        const itemClass =
+          'list-item' +
+          (active === c.dbId ? ' active' : '') +
+          (disabled ? ' disabled' : '');
+        return (
+          <div key={c.dbId} className={itemClass} onClick={() => onSelect(c.dbId)}>
+            <div className="list-item-title">
+              <span className={'badge badge-' + c.type}>
+                {c.type === 'mysql' ? 'MySQL' : 'PG'}
+              </span>
+              <span className="list-item-dbId">{c.dbId}</span>
+              {disabled ? (
+                <span className="disabled-badge" title="已禁用：任何数据访问都会被拒绝">
+                  已禁用
+                </span>
+              ) : null}
+              <TestStatusBadge
+                status={c.testStatus}
+                error={c.testError}
+                onRetest={(e) => {
+                  e.stopPropagation();
+                  onRetest(c.dbId);
+                }}
+              />
+              <button
+                type="button"
+                className="list-item-action"
+                title={disabled ? '启用该连接' : '禁用该连接（任何数据访问都会被拒绝）'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleEnabled(c.dbId, disabled);
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                  {disabled ? null : <path d="M2 2l20 20" />}
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="list-item-action"
+                title="复制为新连接（不保存，进入编辑）"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDuplicate(c.dbId);
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              </button>
+            </div>
+            <div className="list-item-meta">
+              {c.user}@{c.host}:{c.port}/{c.database}
+            </div>
+            <PermissionChips perms={c.permissions} />
+            {c.description ? <div className="list-item-desc">{c.description}</div> : null}
           </div>
-          <div className="list-item-meta">{c.user}@{c.host}:{c.port}/{c.database}</div>
-          <PermissionChips perms={c.permissions} />
-          {c.description ? <div className="list-item-desc">{c.description}</div> : null}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

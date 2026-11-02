@@ -18,6 +18,7 @@ export interface CliConfigInput {
   database: string;
   schema?: string;
   description?: string;
+  enabled?: boolean;
   permissions: DbPermissions;
   test?: boolean;
 }
@@ -52,6 +53,7 @@ export async function runConfigCli(input: CliConfigInput): Promise<void> {
     database: input.database,
     schema: input.schema,
     description: input.description,
+    enabled: input.enabled,
     permissions: input.permissions,
   });
 
@@ -59,6 +61,9 @@ export async function runConfigCli(input: CliConfigInput): Promise<void> {
   console.log(`✅ 已保存连接 "${saved.dbId}" → ${endpoint}`);
   if (saved.description) console.log(`   描述: ${saved.description}`);
   console.log(`   权限: ${formatPermissions(saved.permissions)}`);
+  if (saved.enabled === false) {
+    console.log(`   状态: 🔒 已禁用（数据访问会被拒绝，重新启用：db-driver enable ${saved.dbId}）`);
+  }
   closeConfigDb();
 }
 

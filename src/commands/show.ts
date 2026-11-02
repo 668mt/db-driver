@@ -15,6 +15,7 @@ export async function runShow(dbId: string, options: { json: boolean; revealPass
     database: conn.database,
     schema: conn.schema ?? null,
     description: conn.description ?? null,
+    enabled: conn.enabled !== false,
     password: options.revealPassword ? conn.password : '••••••',
     permissions: conn.permissions,
     createdAt: conn.createdAt,
@@ -28,6 +29,7 @@ export async function runShow(dbId: string, options: { json: boolean; revealPass
   }
 
   console.log(`\n🔌 ${conn.dbId}\n`);
+  console.log(`  状态:     ${conn.enabled === false ? '🔒 已禁用（数据访问被拒绝）' : '✅ 已启用'}`);
   console.log(`  类型:     ${conn.type}`);
   console.log(`  Host:     ${conn.host}`);
   console.log(`  Port:     ${conn.port}`);

@@ -98,7 +98,9 @@ function load(): ConfigFile {
     }
     cache = {
       version: SCHEMA_VERSION,
-      connections: Array.isArray(parsed.connections) ? parsed.connections : [],
+      connections: Array.isArray(parsed.connections)
+        ? parsed.connections.map((c) => ({ ...c, enabled: c.enabled !== false }))
+        : [],
     };
     return cache;
   } catch (e) {
@@ -128,6 +130,23 @@ export function getConnection(dbId: string): DbConnectionConfig | null {
   return load().connections.find((c) => c.dbId === dbId) ?? null;
 }
 
+/**
+ * 取一个**已启用**的连接。被禁用的连接一律拒绝数据访问。
+ * 这是「禁用连接」的唯一强制入口 —— 所有会碰数据库的命令都必须走它。
+ */
+export function getEnabledConnection(dbId: string): DbConnectionConfig | null {
+  const conn = getConnection(dbId);
+  if (!conn) return null;
+  if (conn.enabled === false) {
+    throw new Error(
+      `数据库连接已被禁用: ${dbId}\n` +
+        `如需启用：db-driver enable ${dbId}\n` +
+        `（禁用的连接只是锁住数据访问，配置本身仍在）`
+    );
+  }
+  return conn;
+}
+
 export function upsertConnection(input: {
   dbId: string;
   type: DbType;
@@ -138,11 +157,14 @@ export function upsertConnection(input: {
   database: string;
   schema?: string;
   description?: string;
+  /** 不传则保留已有的启用状态（避免编辑连接时意外把禁用的连接打开） */
+  enabled?: boolean;
   permissions: DbPermissions;
 }): DbConnectionConfig {
   const file = load();
   const idx = file.connections.findIndex((c) => c.dbId === input.dbId);
   const updatedAt = now();
+  const prevEnabled = idx >= 0 ? file.connections[idx].enabled : undefined;
   const next: DbConnectionConfig = {
     dbId: input.dbId,
     type: input.type,
@@ -153,6 +175,7 @@ export function upsertConnection(input: {
     database: input.database,
     schema: input.schema?.trim() || undefined,
     description: input.description?.trim() || undefined,
+    enabled: input.enabled ?? prevEnabled ?? true,
     permissions: input.permissions,
     createdAt: idx >= 0 ? file.connections[idx].createdAt : updatedAt,
     updatedAt,
@@ -162,6 +185,21 @@ export function upsertConnection(input: {
   persist();
   evictDriver(input.dbId);
   return next;
+}
+
+/**
+ * 启用 / 禁用一个连接。
+ * 返回变更后的连接；dbId 不存在返回 null。
+ */
+export function setConnectionEnabled(dbId: string, enabled: boolean): DbConnectionConfig | null {
+  const file = load();
+  const conn = file.connections.find((c) => c.dbId === dbId);
+  if (!conn) return null;
+  conn.enabled = enabled;
+  conn.updatedAt = now();
+  persist();
+  evictDriver(dbId);
+  return conn;
 }
 
 export function deleteConnection(dbId: string): boolean {

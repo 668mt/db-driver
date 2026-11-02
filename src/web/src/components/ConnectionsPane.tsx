@@ -100,6 +100,21 @@ export function ConnectionsPane() {
     }
   };
 
+  const handleToggleEnabled = async (dbId: string, enabled: boolean) => {
+    try {
+      await api.setConnectionEnabled(dbId, enabled);
+      showToast(enabled ? '已启用连接' : '已禁用连接');
+      if (current?.dbId === dbId) {
+        const conn = await api.getConnection(dbId);
+        setCurrent(conn);
+        setDraft(conn);
+      }
+      await reload();
+    } catch (e) {
+      showToast('操作失败: ' + (e as Error).message, 'error');
+    }
+  };
+
   const handleDelete = () => {
     if (!current) return;
     showModal({
@@ -155,7 +170,14 @@ export function ConnectionsPane() {
           </div>
         </div>
         <div className="sidebar-content">
-          <ConnectionList list={list} active={current?.dbId} onSelect={handleSelect} onDuplicate={handleDuplicate} onRetest={retest} />
+          <ConnectionList
+            list={list}
+            active={current?.dbId}
+            onSelect={handleSelect}
+            onDuplicate={handleDuplicate}
+            onRetest={retest}
+            onToggleEnabled={handleToggleEnabled}
+          />
         </div>
       </aside>
 

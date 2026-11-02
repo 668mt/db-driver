@@ -1,6 +1,6 @@
 {
   "name": "db-driver",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Database CLI tool with web-based configuration",
   "type": "module",
   "bin": {
@@ -11,7 +11,7 @@
     "dist",
     "skill"
   ],
-"scripts": {
+  "scripts": {
     "build": "tsc && vite build",
     "build:tsc": "tsc",
     "build:ui": "vite build",
@@ -45,6 +45,7 @@
   },
   "homepage": "https://github.com/668mt/db-driver/blob/master/README.md",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@napi-rs/keyring": "^2.1.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/marked": "^5.0.2",
@@ -59,7 +60,8 @@
     "pg": "^8.13.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

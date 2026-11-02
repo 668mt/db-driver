@@ -1,4 +1,4 @@
-import { getConnection, closeConfigDb } from '../store/configStore.js';
+import { getEnabledConnection, closeConfigDb } from '../store/configStore.js';
 import { acquireDriver } from '../db/pool.js';
 import { checkSqlPermission, SqlPermissionError } from '../db/permissions.js';
 import { translateDbError } from '../utils/errors.js';
@@ -11,7 +11,7 @@ export interface SampleOptions {
 }
 
 export async function runSample(dbId: string, table: string, options: SampleOptions): Promise<void> {
-  const conn = getConnection(dbId);
+  const conn = getEnabledConnection(dbId);
   if (!conn) {
     throw new Error(`数据库连接不存在: ${dbId}`);
   }

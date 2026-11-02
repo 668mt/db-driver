@@ -10,9 +10,19 @@ export interface DbConnectionConfig {
   database: string;
   schema?: string;
   description?: string;
+  /**
+   * 是否启用。`false` = 该连接被禁用，任何数据访问都会被拒绝。
+   * 字段缺失（旧配置文件）视为启用，保持向后兼容。
+   */
+  enabled?: boolean;
   permissions: DbPermissions;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 连接是否被禁用（字段缺失 = 启用） */
+export function isConnectionEnabled(conn: Pick<DbConnectionConfig, 'enabled'>): boolean {
+  return conn.enabled !== false;
 }
 
 export interface DbPermissions {

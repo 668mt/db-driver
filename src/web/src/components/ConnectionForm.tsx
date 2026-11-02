@@ -97,6 +97,21 @@ export function ConnectionForm({
         </div>
       </div>
 
+      <div className="section-title">状态</div>
+      <div className="permissions">
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={draft.enabled !== false}
+            onChange={(e) => update('enabled', e.target.checked)}
+          />
+          <div className="checkbox-label">
+            启用
+            <span className="checkbox-desc">取消勾选即禁用该连接，任何数据访问都会被拒绝</span>
+          </div>
+        </label>
+      </div>
+
       <div className="section-title">权限</div>
       <div className="permissions">
         <label className="checkbox">

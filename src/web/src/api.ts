@@ -28,6 +28,13 @@ export const api = {
   deleteConnection(dbId: string): Promise<{ ok: true }> {
     return jsonFetch(`/api/connections/${encodeURIComponent(dbId)}`, { method: 'DELETE' });
   },
+  setConnectionEnabled(dbId: string, enabled: boolean): Promise<DbConnectionConfig> {
+    return jsonFetch(`/api/connections/${encodeURIComponent(dbId)}/enabled`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+  },
   testConnection(conn: Omit<DbConnectionConfig, 'createdAt' | 'updatedAt'>): Promise<{ ok: boolean; error?: string }> {
     return jsonFetch('/api/test', {
       method: 'POST',

@@ -79,6 +79,20 @@ db-driver test <dbId>                # 测试连接
 db-driver remove <dbId> --yes        # 删除连接
 ```
 
+## 禁用 / 启用连接
+
+```bash
+db-driver disable <dbId>             # 禁用：任何数据访问都被拒绝
+db-driver enable  <dbId>             # 重新启用
+db-driver disable <dbId> --json      # JSON 输出
+```
+
+- **禁用只锁数据访问**，账号密码 / 权限位 / 描述全部保留，随时可再启用。
+- 被禁用的连接上，`schema` / `sample` / `count` / `execute` / `script` / `explain` / `test` 全部会被拒绝，报「数据库连接已被禁用」。
+- `list` / `show` 仍可查看（会标出「已禁用」）。
+- **AI Agent 不要自行 disable / enable 一个连接** —— 那是用户的决定。若因为连接被禁用而无法完成任务，把错误原样反馈给用户，询问是否需要启用（由用户自己执行 `db-driver enable <dbId>`）。
+- 网页控制台里也有开关：连接列表上的锁形按钮，或连接编辑页的「启用」勾选框。
+
 ## 数据浏览
 
 ```bash
@@ -130,11 +144,76 @@ db-driver execute <dbId> "DELETE FROM ..."         # 需要 dmlDelete
 db-driver execute <dbId> "ALTER TABLE ..."         # 需要 ddl
 ```
 
-**限制：**
+### 多条语句（分号分隔）
 
-1. **单条语句**——不支持以分语句（分号分隔的多条 SQL）。
-2. **权限校验**——执行前按连接的权限位拦截，无权限则拒绝。
-3. **失败安全**——SQL 解析失败（注释断字、MySQL 条件注释等绕过技巧）一律拒绝。
+```bash
+# 按顶层分号拆分，逐条做权限校验后顺序执行
+db-driver execute <dbId> "SELECT 1 AS a; SELECT 2 AS b"
+
+# 某条失败后继续执行后面的语句（默认遇错即停）
+db-driver execute <dbId> "INSERT ...; SELECT ..." --continue-on-error
+
+# JSON 输出包含每条语句的结果
+db-driver execute <dbId> "SELECT 1; SELECT 2" --json
+```
+
+- 拆分规则：识别单/双/反引号字符串、`--` 与 `#` 行注释、C 风格块注释、PostgreSQL 的 `$$dollar$$`；字符串里的分号不切分。
+- **每条语句单独走 AST 权限校验**——整包不会被一次性放行；任何一条越权，整批都会被拒绝（已执行的语句不回滚）。
+
+## 批量执行脚本文件
+
+```bash
+# 执行 .sql 脚本：按顶层分号拆成多条语句，逐条做权限校验后顺序执行
+db-driver script <dbId> ./init.sql
+
+# 只校验权限、不真正执行（预检，推荐先跑一遍）
+db-driver script <dbId> ./init.sql --dry-run
+
+# 某条失败后继续
+db-driver script <dbId> ./init.sql --continue-on-error
+
+# JSON 输出（含每条语句的 SQL / 结果 / 错误）
+db-driver script <dbId> ./init.sql --json
+```
+
+- 支持 MySQL 客户端的 `DELIMITER $$` 指令（存储过程中的分号不会被误切）。
+- **权限校验与 `execute` 完全一致**：每条语句单独校验，解析失败 → 拒绝。
+- 默认遇错即停；已成功的语句**不会自动回滚**（MySQL DDL 本身也多为隐式提交）。
+
+## MCP server（stdio）
+
+```bash
+db-driver mcp     # 以 stdio 方式启动，作为 MCP server 供 AI 客户端连接
+```
+
+在 MCP 客户端（如 OpenCode / Claude Code）的配置里注册：
+
+```json
+{
+  "mcp": {
+    "db-driver": {
+      "command": "db-driver",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+暴露的工具：
+
+| 工具 | 说明 |
+|------|------|
+| `db_list_connections` | 列出所有连接（dbId / 类型 / 库名 / 权限位 / 是否启用），不含密码 |
+| `db_set_connection_enabled` | 启用 / 禁用一个连接（AI 不应自行调用，需用户明确指示） |
+| `db_schema` | 列表名，或 `--table` 看字段 + 索引 |
+| `db_sample` | 表样本数据，可带 WHERE |
+| `db_count` | 表行数，可带 WHERE |
+| `db_execute` | 执行 SQL（**支持多条语句**），可 dryRun / continueOnError |
+| `db_script` | 执行 .sql 脚本文件，可 dryRun |
+| `db_explain` | 执行计划，analyze=true 才真正执行 |
+
+> MCP 工具与 CLI 走同一套权限校验，权限不足一律拒绝。
+
 
 ## explain（查询计划）
 
@@ -219,6 +298,7 @@ db-driver usage clear --dbId my-app --yes                  # 清某个库（不�
 db-driver 每个连接在配置阶段绑定 4 个权限位（`dmlQuery` / `dmlUpdate` / `dmlDelete` / `ddl`），**所有 SQL 执行前按权限位拦截**。AI Agent 必须遵守：
 
 1. **禁止自行提升权限** —— 当一条 SQL 因为权限被拒时，**绝对不要**通过重新 `db-driver config` 自己打开新权限。如果真的需要，让用户去打开（或跑 `db-driver console` 网页配置）。
+1.1 **禁止自行启用被禁用的连接** —— 同理，连接被禁用时不要自己去跑 `db-driver enable`（也不要让用户跑，**先问**）。这属于用户的决定。
 2. **禁止绕过检查** —— 不要尝试注释断字（`U/**/PDATE`）、MySQL 条件注释（`/*! UPDATE */`）、存储过程 `CALL`、动态 SQL（`PREPARE`/`EXECUTE`）等绕过技巧——它们都会被 SQL 解析器拒绝。
 3. **提权必须用户明确同意** —— 只有用户**明确**说"开 INSERT 权限"、"开 DDL"等指令时，AI 才能给出新的 `db-driver config` 命令让用户执行。**不要假设、不要替用户决定**。
 4. **失败立即停下并报告** —— 权限不足、SQL 被拒、表不存在、解析失败……所有失败**立即停止当前任务**，把完整错误原样反馈给用户，不要尝试第二条路径蒙混过关。
@@ -247,6 +327,7 @@ db-driver 每个连接在配置阶段绑定 4 个权限位（`dmlQuery` / `dmlUp
 
 ```
 连接不存在        → db-driver list 看 dbId；提示用户用 db-driver config 添加
+连接已被禁用      → 把错误原样反馈给用户；询问是否需要启用（由用户自己跑 db-driver enable <dbId>），不要自行启用
 权限被拒         → 把错误原样反馈给用户；不要自行调整；等用户明确同意再提示新 config 命令
 PG schema 找不到表 → 让用户确认 db-driver show <dbId> 输出的 schema 字段；用户可临时 --schema 切换
 表不存在         → db-driver schema <dbId> --search <keyword> 找相似表

@@ -71,6 +71,29 @@
   background: var(--primary-grad);
 }
 
+.list-item.disabled {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.list-item.disabled:hover {
+  transform: none;
+  border-color: var(--card-border);
+  box-shadow: none;
+}
+
+.disabled-badge {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: var(--danger, #ef4444);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
 .list-item-title {
   font-weight: 600;
   font-size: 14px;

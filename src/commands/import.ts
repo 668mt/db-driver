@@ -14,6 +14,7 @@ interface ExportedConnection {
   database: string;
   schema?: string;
   description?: string;
+  enabled?: boolean;
   permissions: DbPermissions;
 }
 
@@ -94,6 +95,7 @@ export async function runImport(file: string, options: ImportOptions): Promise<v
       database: c.database,
       schema: c.schema,
       description: c.description,
+      enabled: c.enabled,
       permissions: c.permissions,
     });
     imported++;

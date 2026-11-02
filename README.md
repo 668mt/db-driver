@@ -38,6 +38,7 @@
 
 - [30 秒上手](#30-秒上手)
 - [给 AI Agent 用：skill 工作流](#给-ai-agent-用skill-工作流)
+- [禁用连接](#禁用连接)
 - [权限模型](#权限模型)
 - [配置详解](#配置详解)
 - [命令一览](#命令一览)
@@ -102,6 +103,23 @@ db-driver execute my-app "SELECT * FROM users LIMIT 5" --json
 - **永远带 `--limit`** — 默认 50 行，防爆炸
 - **不确定时先 schema** — 别瞎写列名 / 表名
 - **写操作前先 count** — 确认影响范围
+
+## 禁用连接
+
+除了 4 个权限位，每个连接还有一个**启用开关**。禁用后，该连接上的**任何数据访问**都会被拒绝：
+
+```bash
+db-driver disable my-app-prd     # 禁用
+db-driver enable  my-app-prd     # 重新启用
+```
+
+- 被禁用的连接上，`schema` / `sample` / `count` / `execute` / `script` / `explain` / `test` 全部报「数据库连接已被禁用」。
+- **配置与权限位全部保留** —— 禁用只是把数据访问锁上，随时可以再启用（不会丢失账号密码）。
+- `db-driver list` / `show` 仍可查看，并会标出「🔒 已禁用」。
+- 网页控制台里也有开关：连接列表上的锁形按钮，或连接编辑页的「启用」勾选框。
+- MCP 的 `db_execute` / `db_script` 等工具对禁用连接同样拒绝；`db_set_connection_enabled` 可以从 MCP 侧开关。
+
+> 典型用法：把生产库的连接禁掉，AI 就完全碰不到生产数据了 —— 这比逐条收紧权限位更省心。
 
 ## 权限模型
 
@@ -257,6 +275,8 @@ db-driver console
 | `db-driver show <dbId>` | 看连接详情（密码默认隐藏，`--reveal-password` 显示明文） |
 | `db-driver test <dbId>` | 测试连通性 |
 | `db-driver remove <dbId> --yes` | 删除连接 |
+| `db-driver disable <dbId>` | 禁用连接（任何数据访问都被拒绝；配置与权限保留） |
+| `db-driver enable <dbId>` | 重新启用连接 |
 | `db-driver export <file> [--passphrase <pwd>]` | 导出所有连接到文件（passphrase 留空 = 明文 JSON；≥8 位 = 加密 `.exp`） |
 | `db-driver import <file> [--passphrase <pwd>] [--replace]` | 从文件导入连接（同名 dbId 默认跳过，`--replace` 覆盖） |
 
@@ -273,8 +293,53 @@ db-driver console
 | `db-driver sample <dbId> <table>` | 样本数据（默认 10 行） |
 | `db-driver count <dbId> <table>` | 行数 |
 | `db-driver execute <dbId> "<SQL>" --json` | 跑查询（带 JSON 输出） |
+| `db-driver execute <dbId> "<SQL1>; <SQL2>"` | 多条语句（分号分隔），逐条做权限校验 |
+| `db-driver execute <dbId> "<SQL>" --continue-on-error` | 某条失败后继续执行后面的 |
 | `db-driver explain <dbId> "<SQL>"` | 执行计划（不执行） |
 | `db-driver explain <dbId> "<SQL>" --analyze` | 真正执行并返回耗时 |
+
+### 批量执行脚本
+
+| 命令 | 说明 |
+|------|------|
+| `db-driver script <dbId> <file.sql>` | 执行 .sql 脚本：按顶层分号拆成多条语句，逐条做权限校验后顺序执行 |
+| `db-driver script <dbId> <file.sql> --dry-run` | 只校验权限、不真正执行（预检） |
+| `db-driver script <dbId> <file.sql> --continue-on-error` | 某条失败后继续 |
+| `db-driver script <dbId> <file.sql> --json` | JSON 输出（含每条语句的 SQL / 结果 / 错误） |
+
+- 拆分识别：单/双/反引号字符串、`--` 与 `#` 行注释、C 风格块注释、PostgreSQL 的 `$$dollar$$`；字符串里的分号不切分。
+- 支持 MySQL 客户端的 `DELIMITER $$` 指令（存储过程里的分号不会被误切）。
+- **每条语句单独走 AST 权限校验**，整包不会一次性放行；已成功的语句不会自动回滚。
+
+### MCP server（stdio）
+
+```bash
+db-driver mcp     # 以 stdio 方式启动 MCP server
+```
+
+在 MCP 客户端（如 OpenCode / Claude Code）里注册：
+
+```json
+{
+  "mcp": {
+    "db-driver": {
+      "command": "db-driver",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+| 工具 | 说明 |
+|------|------|
+| `db_list_connections` | 列出所有连接（不含密码） |
+| `db_set_connection_enabled` | 启用 / 禁用连接 |
+| `db_schema` | 列表名 / 看字段 + 索引 |
+| `db_sample` | 样本数据（可带 WHERE） |
+| `db_count` | 行数（可带 WHERE） |
+| `db_execute` | 执行 SQL（支持多条语句），可 dryRun / continueOnError |
+| `db_script` | 执行 .sql 脚本文件，可 dryRun |
+| `db_explain` | 执行计划（analyze=true 才真正执行） |
 
 ### 用法笔记（明文 Markdown，一条笔记可关联多个 dbId）
 
@@ -389,7 +454,8 @@ db-driver/
 │   │   ├── config.ts                # 配置（Web + CLI 双模式）
 │   │   ├── list/show/test/remove.ts # 连接管理
 │   │   ├── schema/sample/count.ts   # 数据浏览
-│   │   ├── execute.ts               # SQL 执行 + AST 权限校验
+│   │   ├── execute.ts               # SQL 执行 + AST 权限校验（支持多条语句）
+│   │   ├── script.ts                # .sql 脚本文件批量执行
 │   │   ├── explain.ts               # EXPLAIN / EXPLAIN ANALYZE
 │   │   ├── export.ts / import.ts    # 加密导出导入
 │   │   ├── usage.ts                 # 用法笔记
@@ -400,7 +466,13 @@ db-driver/
 │   │   ├── postgres.ts              # PostgreSQL 实现（pg.Client）
 │   │   ├── pool.ts                  # 进程内连接池（30s TTL）
 │   │   ├── permissions.ts           # AST 解析 + 权限校验
+│   │   ├── sqlSplit.ts              # 脚本按顶层分号拆分（保留注释，防绕过）
+│   │   ├── batch.ts                 # 批量执行引擎（逐条权限校验）
 │   │   └── types.ts                 # DbConnectionConfig 等共享类型
+│   ├── mcp/
+│   │   ├── server.ts                # stdio MCP server（工具注册）
+│   │   ├── tools.ts                 # MCP 工具实现
+│   │   └── scriptTool.ts            # MCP 版脚本执行工具
 │   ├── store/
 │   │   ├── configStore.ts           # AES-256-GCM 加密连接配置
 │   │   └── usageStore.ts            # 用法笔记（明文 SQLite）

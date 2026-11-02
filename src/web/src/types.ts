@@ -17,6 +17,7 @@ export interface DbConnectionConfig {
   database: string;
   schema?: string;
   description?: string;
+  enabled?: boolean;
   permissions: DbPermissions;
   createdAt: string;
   updatedAt: string;

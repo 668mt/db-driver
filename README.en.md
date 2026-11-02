@@ -38,6 +38,7 @@ Letting an AI agent write raw SQL is risky:
 
 - [30-Second Quickstart](#30-second-quickstart)
 - [For AI Agents: Skill Workflow](#for-ai-agents-skill-workflow)
+- [Disabling a connection](#disabling-a-connection)
 - [Permission Model](#permission-model)
 - [Configuration](#configuration)
 - [Command Reference](#command-reference)
@@ -102,6 +103,23 @@ db-driver execute my-app "SELECT * FROM users LIMIT 5" --json
 - **Always pass `--limit`** — default 50 rows, prevents context blowups
 - **Schema first** — don't guess column or table names
 - **Count before writing** — confirm blast radius before UPDATE / DELETE
+
+## Disabling a connection
+
+On top of the 4 permission bits, every connection has an **enable switch**. Once disabled, **all data access** to that connection is rejected:
+
+```bash
+db-driver disable my-app-prd     # disable
+db-driver enable  my-app-prd     # re-enable
+```
+
+- On a disabled connection, `schema` / `sample` / `count` / `execute` / `script` / `explain` / `test` all fail with "database connection is disabled".
+- **The configuration and permission bits are kept** — disabling only locks data access, and you can re-enable at any time (no credentials lost).
+- `db-driver list` / `show` still work and flag it as "🔒 disabled".
+- The web console has the same switch: the padlock button in the connection list, or the "enabled" checkbox in the connection editor.
+- MCP tools (`db_execute` / `db_script`, …) reject disabled connections too; `db_set_connection_enabled` toggles it from MCP.
+
+> Typical use: disable the production connection and the AI can no longer touch production data at all — easier than tightening permission bits one by one.
 
 ## Permission Model
 
@@ -257,6 +275,8 @@ Connection configs are stored as **AES-256-GCM** encrypted binary; the **master 
 | `db-driver show <dbId>` | Show connection details (password masked; `--reveal-password` to display) |
 | `db-driver test <dbId>` | Test connectivity |
 | `db-driver remove <dbId> --yes` | Delete a connection |
+| `db-driver disable <dbId>` | Disable a connection (all data access rejected; config and permissions kept) |
+| `db-driver enable <dbId>` | Re-enable a connection |
 | `db-driver export <file> [--passphrase <pwd>]` | Export all connections (no passphrase → plaintext JSON; ≥8 chars → encrypted `.exp`) |
 | `db-driver import <file> [--passphrase <pwd>] [--replace]` | Import from file (same `dbId` skipped by default; `--replace` overwrites) |
 
@@ -273,8 +293,53 @@ Connection configs are stored as **AES-256-GCM** encrypted binary; the **master 
 | `db-driver sample <dbId> <table>` | Sample rows (default 10) |
 | `db-driver count <dbId> <table>` | Row count |
 | `db-driver execute <dbId> "<SQL>" --json` | Run a query (with JSON output) |
+| `db-driver execute <dbId> "<SQL1>; <SQL2>"` | Multiple statements (semicolon-separated), each permission-checked |
+| `db-driver execute <dbId> "<SQL>" --continue-on-error` | Keep going after a failed statement |
 | `db-driver explain <dbId> "<SQL>"` | Query plan (no execution) |
 | `db-driver explain <dbId> "<SQL>" --analyze` | Actually execute and return timing |
+
+### Batch script execution
+
+| Command | Purpose |
+|---------|---------|
+| `db-driver script <dbId> <file.sql>` | Execute a `.sql` file: split on top-level semicolons, permission-check each statement, run in order |
+| `db-driver script <dbId> <file.sql> --dry-run` | Only validate permissions, do not execute (pre-flight) |
+| `db-driver script <dbId> <file.sql> --continue-on-error` | Keep going after a failed statement |
+| `db-driver script <dbId> <file.sql> --json` | JSON output (per-statement SQL / result / error) |
+
+- Splitting recognizes single/double/backtick strings, `--` and `#` line comments, C-style block comments, and PostgreSQL `$$dollar$$`; semicolons inside strings are not separators.
+- MySQL client `DELIMITER $$` directives are supported (semicolons inside stored procedures are not mis-split).
+- **Every statement goes through the AST permission check individually** — the batch is never waved through as a whole; already-executed statements are not rolled back.
+
+### MCP server (stdio)
+
+```bash
+db-driver mcp     # start the MCP server over stdio
+```
+
+Register it in an MCP client (OpenCode / Claude Code):
+
+```json
+{
+  "mcp": {
+    "db-driver": {
+      "command": "db-driver",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+| Tool | Purpose |
+|------|---------|
+| `db_list_connections` | List all connections (no passwords) |
+| `db_set_connection_enabled` | Enable / disable a connection |
+| `db_schema` | List tables / show columns + indexes |
+| `db_sample` | Sample rows (optional WHERE) |
+| `db_count` | Row count (optional WHERE) |
+| `db_execute` | Execute SQL (supports multiple statements), with dryRun / continueOnError |
+| `db_script` | Execute a `.sql` script file, with dryRun |
+| `db_explain` | Query plan (`analyze=true` actually executes) |
 
 ### Usage notes (plaintext Markdown; a note can bind to multiple `dbId`s)
 
